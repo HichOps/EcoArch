@@ -68,6 +68,14 @@ infracost_analysis:
   script:
     - infracost breakdown --path plan.json --format json --out-file infracost-report.json
     - python src/parser.py
+    # 1. Lancer les tests unitaires (Qualité d'abord)
+    - pytest tests/
+    # 2. Générer le rapport réel
+    - infracost breakdown --path plan.json --format json --out-file infracost-report.json
+    # 3. Afficher le rapport Markdown dans les logs
+    - python src/parser.py
+    # 4. Appliquer la porte budgétaire (Blocage si besoin)
+    - python src/budget_gate.py
   artifacts:
     paths:
       - infracost-report.json
