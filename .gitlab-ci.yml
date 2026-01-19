@@ -8,6 +8,10 @@ variables:
   # Informations extraites de vos commandes précédentes
   GCP_WIF_PROVIDER: "projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider"
   GCP_SERVICE_ACCOUNT: "ecoarch-ci@ecoarch-mvp-1768828854.iam.gserviceaccount.com"
+  # Configuration Low-Cost
+  TF_VAR_project_id: "ecoarch-mvp-1768828854"
+  TF_VAR_region: "us-central1"
+  TF_VAR_zone: "us-central1-a"
   # Versions verrouillées
   TERRAFORM_VERSION: "1.10.0"
   PYTHON_VERSION: "3.11.10-slim"
