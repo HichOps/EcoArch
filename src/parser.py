@@ -33,6 +33,17 @@ class EcoArchParser:
                 })
         return flattened
 
+    def extract_metrics(self) -> Dict[str, Any]:
+        """
+        Extrait les métriques globales. 
+        Cette méthode est requise par pytest et budget_gate.py.
+        """
+        return {
+            "total_monthly_cost": float(self.data.get("totalMonthlyCost", 0)),
+            "diff_monthly_cost": float(self.data.get("diffTotalMonthlyCost", 0)),
+            "currency": self.data.get("currency", "USD")
+        }
+
     def get_top_expensive(self, limit: int = 3) -> List[Dict[str, Any]]:
         """Retourne le Top N des ressources les plus coûteuses."""
         sorted_res = sorted(self.resources, key=lambda x: x['monthly_cost'], reverse=True)
@@ -48,29 +59,28 @@ class EcoArchParser:
         """Génère un rapport détaillé au format Markdown pour GitLab."""
         top_3 = self.get_top_expensive(3)
         increase = self.get_biggest_increase()
-        
-        currency = self.data.get("currency", "USD")
-        total_cost = float(self.data.get("totalMonthlyCost", 0))
+        metrics = self.extract_metrics()
 
         report = [
             f"## 🛠️ EcoArch FinOps Analysis",
-            f"**Total Monthly Estimate:** `{total_cost:.2f} {currency}`\n",
+            f"**Total Monthly Estimate:** `{metrics['total_monthly_cost']:.2f} {metrics['currency']}`\n",
             "### 🏆 Top 3 Expensive Resources",
             "| Resource | Monthly Cost |",
             "| :--- | :--- |"
         ]
         
         for res in top_3:
-            report.append(f"| `{res['name']}` | {res['monthly_cost']:.2f} {currency} |")
+            report.append(f"| `{res['name']}` | {res['monthly_cost']:.2f} {metrics['currency']} |")
 
         if increase and increase['delta'] > 0:
             report.append("\n### ⚠️ Highest Increase")
-            report.append(f"Resource `{increase['name']}` increased by **{increase['delta']:.2f} {currency}**")
+            report.append(f"Resource `{increase['name']}` increased by **{increase['delta']:.2f} {metrics['currency']}**")
 
         return "\n".join(report)
 
 if __name__ == "__main__":
     try:
+        # On s'attend à ce que le fichier soit dans le répertoire courant
         parser = EcoArchParser("infracost-report.json")
         print(parser.generate_markdown_report())
     except Exception as e:
