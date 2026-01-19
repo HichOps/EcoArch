@@ -66,16 +66,19 @@ infracost_analysis:
       curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | \
       sh -s -- -v ${INFRACOST_VERSION}
     - pip install --no-cache-dir -r requirements.txt
+    # On définit le chemin pour que les imports 'from src...' fonctionnent
+    - export PYTHONPATH=. 
   script:
+    # 1. Analyse Infracost (génère le fichier nécessaire pour la suite)
     - infracost breakdown --path plan.json --format json --out-file infracost-report.json
-    - python src/parser.py
-    # 1. Lancer les tests unitaires (Qualité d'abord)
+    
+    # 2. Validation Qualité (Pytest)
     - pytest tests/
-    # 2. Générer le rapport réel
-    - infracost breakdown --path plan.json --format json --out-file infracost-report.json
-    # 3. Afficher le rapport Markdown dans les logs
+    
+    # 3. Affichage du rapport (Parser)
     - python src/parser.py
-    # 4. Appliquer la porte budgétaire (Blocage si besoin)
+    
+    # 4. Crash Test Final (Budget Gate)
     - python src/budget_gate.py
   artifacts:
     paths:
