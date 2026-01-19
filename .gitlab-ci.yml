@@ -37,7 +37,9 @@ variables:
 terraform_plan:
   extends: .gcp_auth
   stage: plan
-  image: hashicorp/terraform:${TERRAFORM_VERSION}
+  image:
+    name: hashicorp/terraform:${TERRAFORM_VERSION}
+    entrypoint: [""]  # <--- Ajout crucial : on vide l'entrypoint pour autoriser le shell
   script:
     - cd $TF_ROOT
     - terraform init
