@@ -24,7 +24,7 @@ variable "instance_name" {
 variable "machine_type" {
   description = "Type d'instance (détermine le coût)"
   type        = string
-  default     = "n2-standard-2" # Valeur actuelle générant ~99 USD
+  default     = "n2-standard-8" # Valeur actuelle générant ~99 USD
 }
 
 variable "boot_disk_image" {
