@@ -1,12 +1,12 @@
 resource "google_compute_instance" "demo_vm" {
-  name         = "ecoarch-test-vm"
-  machine_type = "e2-standard-4" # On prend une instance moyenne pour voir le coût
+  name         = var.instance_name
+  machine_type = var.machine_type # Variabilisé pour le test FinOps
   zone         = var.zone
 
   boot_disk {
     initialize_params {
-      image = "debian-cloud/debian-11"
-      size  = 50 # 50GB pour générer un coût de stockage
+      image = var.boot_disk_image
+      size  = var.boot_disk_size # Variabilisé (ex: 50GB)
     }
   }
 

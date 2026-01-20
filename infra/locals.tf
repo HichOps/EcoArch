@@ -1,9 +1,8 @@
-# Logique de tags/labels (Essentiel pour le FinOps)
 locals {
   common_labels = {
-    project     = "ecoarch-demo"
-    environment = "dev"
+    project     = "ecoarch"
+    environment = "test"
     managed_by  = "terraform"
-    owner       = "expert-devops"
+    owner       = "hichops"
   }
 }

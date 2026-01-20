@@ -1,7 +1,9 @@
 import json
 import sys
+import os
 from pathlib import Path
 from typing import Dict, Any, List, Optional
+from supabase import create_client, Client
 
 class EcoArchParser:
     def __init__(self, json_path: str):
@@ -9,7 +11,6 @@ class EcoArchParser:
         if not self.json_path.exists():
             raise FileNotFoundError(f"Fichier non trouvé : {json_path}")
         self.data = self._load_data()
-        # Extraction à plat de toutes les ressources pour faciliter le tri
         self.resources = self._flatten_resources()
 
     def _load_data(self) -> Dict[str, Any]:
@@ -17,7 +18,6 @@ class EcoArchParser:
             return json.load(f)
 
     def _flatten_resources(self) -> List[Dict[str, Any]]:
-        """Extrait toutes les ressources des différents projets Infracost."""
         flattened = []
         projects = self.data.get("projects", [])
         for project in projects:
@@ -34,33 +34,51 @@ class EcoArchParser:
         return flattened
 
     def extract_metrics(self) -> Dict[str, Any]:
-        """
-        Extrait les métriques globales. 
-        Cette méthode est requise par pytest et budget_gate.py.
-        """
+        """Extrait les métriques financières globales."""
         return {
             "total_monthly_cost": float(self.data.get("totalMonthlyCost", 0)),
             "diff_monthly_cost": float(self.data.get("diffTotalMonthlyCost", 0)),
             "currency": self.data.get("currency", "USD")
         }
 
-    def get_top_expensive(self, limit: int = 3) -> List[Dict[str, Any]]:
-        """Retourne le Top N des ressources les plus coûteuses."""
-        sorted_res = sorted(self.resources, key=lambda x: x['monthly_cost'], reverse=True)
-        return sorted_res[:limit]
+    def save_to_supabase(self):
+        """Sauvegarde les résultats du run dans Supabase avec les métadonnées de la CI."""
+        url = os.getenv("SUPABASE_URL")
+        key = os.getenv("SUPABASE_SERVICE_KEY")
+        
+        if not url or not key:
+            print("⏭️ Supabase credentials not found, skipping persistence.")
+            return
 
-    def get_biggest_increase(self) -> Optional[Dict[str, Any]]:
-        """Identifie la ressource avec la plus forte augmentation absolue."""
-        if not self.resources:
-            return None
-        return max(self.resources, key=lambda x: x['delta'])
+        supabase: Client = create_client(url, key)
+        metrics = self.extract_metrics()
+        
+        # Calcul du statut (Passed/Failed) basé sur la limite
+        limit = float(os.getenv("ECOARCH_BUDGET_LIMIT", 100.0))
+        status = "PASSED" if metrics["total_monthly_cost"] <= limit else "FAILED"
+
+        # Préparation de l'enregistrement (Architecture alignée avec le SQL)
+        record = {
+            "project_id": os.getenv("CI_PROJECT_NAME", "ecoarch-local"),
+            "branch_name": os.getenv("CI_COMMIT_REF_NAME", "local"),
+            "commit_sha": os.getenv("CI_COMMIT_SHORT_SHA", "HEAD"),
+            "author": os.getenv("CI_COMMIT_AUTHOR", "Unknown"),
+            "total_monthly_cost": metrics["total_monthly_cost"],
+            "diff_monthly_cost": metrics["diff_monthly_cost"],
+            "currency": metrics["currency"],
+            "budget_limit": limit,
+            "status": status
+        }
+
+        try:
+            response = supabase.table("cost_history").insert(record).execute()
+            print(f"✅ Data persisted to Supabase (Status: {status})")
+        except Exception as e:
+            print(f"❌ Failed to persist data to Supabase: {e}")
 
     def generate_markdown_report(self) -> str:
-        """Génère un rapport détaillé au format Markdown pour GitLab."""
-        top_3 = self.get_top_expensive(3)
-        increase = self.get_biggest_increase()
+        """Génère le rapport Markdown pour le bot GitLab."""
         metrics = self.extract_metrics()
-
         report = [
             f"## 🛠️ EcoArch FinOps Analysis",
             f"**Total Monthly Estimate:** `{metrics['total_monthly_cost']:.2f} {metrics['currency']}`\n",
@@ -69,20 +87,19 @@ class EcoArchParser:
             "| :--- | :--- |"
         ]
         
-        for res in top_3:
+        sorted_res = sorted(self.resources, key=lambda x: x['monthly_cost'], reverse=True)[:3]
+        for res in sorted_res:
             report.append(f"| `{res['name']}` | {res['monthly_cost']:.2f} {metrics['currency']} |")
-
-        if increase and increase['delta'] > 0:
-            report.append("\n### ⚠️ Highest Increase")
-            report.append(f"Resource `{increase['name']}` increased by **{increase['delta']:.2f} {metrics['currency']}**")
 
         return "\n".join(report)
 
 if __name__ == "__main__":
     try:
-        # On s'attend à ce que le fichier soit dans le répertoire courant
         parser = EcoArchParser("infracost-report.json")
+        # 1. On affiche le rapport pour le bot
         print(parser.generate_markdown_report())
+        # 2. On sauvegarde dans la base de données
+        parser.save_to_supabase()
     except Exception as e:
-        print(f"Error parsing Infracost report: {e}")
+        print(f"Error: {e}")
         sys.exit(1)
