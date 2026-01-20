@@ -1,23 +1,10 @@
-provider "google" {
-  project = var.project_id
-  region  = var.region
-}
+# infra/main.tf
 
-resource "google_compute_instance" "demo_vm" {
-  name         = var.instance_name
-  machine_type = var.machine_type
-  zone         = var.zone
-
-  boot_disk {
-    initialize_params {
-      image = "debian-cloud/debian-11"
-    }
-  }
-
-  network_interface {
-    network = "default"
-    access_config {
-      # Ajoute une IP publique
-    }
+# On laisse les valeurs vides ici pour les injecter via la CI/CD
+# C'est ce qu'on appelle la configuration partielle.
+terraform {
+  backend "gcs" {
+    bucket = "" # Sera injecté par GitLab
+    prefix = "" # Sera injecté par GitLab
   }
 }

@@ -1,21 +1,23 @@
-# Pipeline Master
+# Pipeline Master - EcoArch FinOps Platform
 stages:
   - plan
   - finops
 
 variables:
   TF_ROOT: "infra"
-  # Informations extraites de vos commandes précédentes
+  # Informations d'authentification GCP (OIDC)
   GCP_WIF_PROVIDER: "projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider"
   GCP_SERVICE_ACCOUNT: "ecoarch-ci@ecoarch-mvp-1768828854.iam.gserviceaccount.com"
-  # Configuration Low-Cost
+  # Configuration GCP
   TF_VAR_project_id: "ecoarch-mvp-1768828854"
   TF_VAR_region: "us-central1"
   TF_VAR_zone: "us-central1-a"
-  # Versions verrouillées
+  # Versions des outils (Verrouillage pour la stabilité)
   TERRAFORM_VERSION: "1.10.0"
   PYTHON_VERSION: "3.11.10-slim"
   INFRACOST_VERSION: "v0.10.39"
+
+# --- TEMPLATES & AUTHENTIFICATION ---
 
 # Template pour l'authentification GCP via OIDC
 .gcp_auth:
@@ -23,8 +25,7 @@ variables:
     GCP_ID_TOKEN:
       aud: https://iam.googleapis.com/projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
   before_script: &gcp_setup
-    # Création du fichier de configuration pour l'ADC (Application Default Credentials)
-    # Utilisation de ${CI_PROJECT_DIR} pour garantir le chemin absolu
+    # Configuration Application Default Credentials (ADC)
     - echo "${GCP_ID_TOKEN}" > ${CI_PROJECT_DIR}/.google_id_token
     - |
       echo "{
@@ -32,23 +33,31 @@ variables:
         \"audience\": \"//iam.googleapis.com/projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider\",
         \"subject_token_type\": \"urn:ietf:params:oauth:token-type:jwt\",
         \"token_url\": \"https://sts.googleapis.com/v1/token\",
-        \"service_account_impersonation_url\": \"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/ecoarch-ci@ecoarch-mvp-1768828854.iam.gserviceaccount.com:generateAccessToken\",
+        \"service_account_impersonation_url\": \"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${GCP_SERVICE_ACCOUNT}:generateAccessToken\",
         \"credential_source\": {
           \"file\": \"${CI_PROJECT_DIR}/.google_id_token\"
         }
       }" > ${CI_PROJECT_DIR}/.google_creds.json
     - export GOOGLE_APPLICATION_CREDENTIALS=${CI_PROJECT_DIR}/.google_creds.json
 
+# --- JOBS DU PIPELINE ---
+
 terraform_plan:
   extends: .gcp_auth
   stage: plan
   image:
     name: hashicorp/terraform:${TERRAFORM_VERSION}
-    entrypoint: [""]  # <--- Ajout crucial : on vide l'entrypoint pour autoriser le shell
+    entrypoint: [""] 
   script:
     - cd $TF_ROOT
-    - terraform init
+    # Injection de la configuration partielle du backend GCS
+    - |
+      terraform init \
+        -backend-config="bucket=${TF_STATE_BUCKET}" \
+        -backend-config="prefix=${TF_STATE_PREFIX}"
+    # Génération du plan binaire
     - terraform plan -out=../tfplan.binary
+    # Conversion en JSON pour Infracost et le Parser Python
     - terraform show -json ../tfplan.binary > ../plan.json
   artifacts:
     paths:
@@ -60,27 +69,31 @@ infracost_analysis:
   stage: finops
   image: python:${PYTHON_VERSION}
   before_script:
-    - *gcp_setup  # <--- On appelle l'ancre ici (plus d'erreur linter)
+    - *gcp_setup
     - apt-get update && apt-get install -y curl=7.88.*
+    # Installation de l'exécutable Infracost
     - |
       curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | \
       sh -s -- -v ${INFRACOST_VERSION}
+    # Installation des dépendances (Supabase client inclus dans requirements.txt)
     - pip install --no-cache-dir -r requirements.txt
-    # On définit le chemin pour que les imports 'from src...' fonctionnent
     - export PYTHONPATH=. 
   script:
-    # 1. Analyse Infracost (génère le fichier nécessaire pour la suite)
+    # 1. Analyse FinOps (génère le fichier de base)
     - infracost breakdown --path plan.json --format json --out-file infracost-report.json
     
-    # 2. Validation Qualité (Pytest)
+    # 2. Qualité : Tests unitaires
     - pytest tests/
     
-    # 3. Affichage du rapport (Parser)
-    - python src/parser.py
-    # Nouveau : Poster le commentaire (ne bloquera pas si mr_iid est absent)
+    # 3. Intelligence FinOps : Parser + Supabase + Rapport Bot
+    # Le parser envoie les données à Supabase ET génère le Markdown
+    - python src/parser.py > report.md
+    
+    # 4. Publication du commentaire sur la Merge Request
+    # On utilise le fichier report.md généré par le parser
     - python src/gitlab_comment.py
 
-    # 4. Crash Test Final (Budget Gate)
+    # 5. Budget Gate : Décision finale (bloque si > budget_limit)
     - python src/budget_gate.py
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -88,4 +101,5 @@ infracost_analysis:
   artifacts:
     paths:
       - infracost-report.json
+      - report.md
     expire_in: 1 week
