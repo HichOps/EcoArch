@@ -54,29 +54,31 @@ infracost_analysis:
   image: python:${PYTHON_VERSION}
   before_script:
     - *gcp_setup
-    # Installation des outils systèmes
     - apt-get update && apt-get install -y curl unzip
-    # 1. Installation Infracost
+    # Installation Infracost
     - curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh -s -- -v ${INFRACOST_VERSION}
-    # 2. Installation Terraform + Mise en PATH (Indispensable pour décoder le binaire)
+    # Installation Terraform
     - |
       curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform.zip
       unzip terraform.zip
       chmod +x terraform
       mv terraform /usr/local/bin/
-    # 3. Préparation environnement Python
+    # Setup Python
     - pip install --no-cache-dir -r requirements.txt
     - export PYTHONPATH=. 
   script:
-    # On entre dans le dossier infra pour qu'Infracost trouve les fichiers .tf
     - cd $TF_ROOT
-    # ASTUCE CRITIQUE : On initialise sans backend pour récupérer les plugins Providers (Google)
-    # sans avoir besoin de s'authentifier au bucket GCS ici.
-    - terraform init -backend=false
-    # Analyse du binaire (remontée d'un cran avec ../ car on est dans infra/)
-    - infracost breakdown --path ../tfplan.binary --format json --out-file ../infracost-report.json
+    # --- CHANGEMENT CRITIQUE ICI ---
+    # On ignore le binaire du job précédent (trop fragile).
+    # On régénère le plan localement pour garantir la compatibilité des chemins.
+    - terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="prefix=${TF_STATE_PREFIX}"
+    - terraform plan -out=finops_local.binary
+    
+    # Analyse du plan fraîchement créé
+    - infracost breakdown --path finops_local.binary --format json --out-file ../infracost-report.json
+    # -------------------------------
+    
     - cd ..
-    # Exécution des scripts de reporting
     - pytest tests/
     - python src/parser.py > report.md
     - python src/gitlab_comment.py
