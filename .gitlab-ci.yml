@@ -1,33 +1,24 @@
 # Pipeline Master - EcoArch FinOps Platform
-# Ce pipeline assure la gouvernance financière automatisée de l'infrastructure GCP.
-
 stages:
   - plan
   - finops
 
 variables:
   TF_ROOT: "infra"
-  # Informations d'authentification GCP (OIDC)
   GCP_WIF_PROVIDER: "projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider"
   GCP_SERVICE_ACCOUNT: "ecoarch-ci@ecoarch-mvp-1768828854.iam.gserviceaccount.com"
-  # Configuration GCP
   TF_VAR_project_id: "ecoarch-mvp-1768828854"
   TF_VAR_region: "us-central1"
   TF_VAR_zone: "us-central1-a"
-  # Versions des outils (Verrouillage pour la stabilité du pipeline)
   TERRAFORM_VERSION: "1.10.0"
   PYTHON_VERSION: "3.11.10-slim"
   INFRACOST_VERSION: "v0.10.43"
 
-# --- TEMPLATES & AUTHENTIFICATION ---
-
-# Template pour l'authentification GCP via Workload Identity Federation
 .gcp_auth:
   id_tokens:
     GCP_ID_TOKEN:
       aud: https://iam.googleapis.com/projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
   before_script: &gcp_setup
-    # Configuration des credentials temporaires Google Cloud
     - echo "${GCP_ID_TOKEN}" > ${CI_PROJECT_DIR}/.google_id_token
     - |
       echo "{
@@ -36,13 +27,9 @@ variables:
         \"subject_token_type\": \"urn:ietf:params:oauth:token-type:jwt\",
         \"token_url\": \"https://sts.googleapis.com/v1/token\",
         \"service_account_impersonation_url\": \"https://iamcredentials.googleapis.com/v1/projects/-/serviceAccounts/${GCP_SERVICE_ACCOUNT}:generateAccessToken\",
-        \"credential_source\": {
-          \"file\": \"${CI_PROJECT_DIR}/.google_id_token\"
-        }
+        \"credential_source\": { \"file\": \"${CI_PROJECT_DIR}/.google_id_token\" }
       }" > ${CI_PROJECT_DIR}/.google_creds.json
     - export GOOGLE_APPLICATION_CREDENTIALS=${CI_PROJECT_DIR}/.google_creds.json
-
-# --- JOBS DU PIPELINE ---
 
 terraform_plan:
   extends: .gcp_auth
@@ -52,14 +39,8 @@ terraform_plan:
     entrypoint: [""] 
   script:
     - cd $TF_ROOT
-    # Initialisation avec le backend GCS (Bucket de State)
-    - |
-      terraform init \
-        -backend-config="bucket=${TF_STATE_BUCKET}" \
-        -backend-config="prefix=${TF_STATE_PREFIX}"
-    # Génération du plan binaire (Source de vérité pour Infracost)
+    - terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="prefix=${TF_STATE_PREFIX}"
     - terraform plan -out=../tfplan.binary
-    # Export en JSON pour inspection ou scripts tiers
     - terraform show -json ../tfplan.binary > ../plan.json
   artifacts:
     paths:
@@ -73,40 +54,32 @@ infracost_analysis:
   image: python:${PYTHON_VERSION}
   before_script:
     - *gcp_setup
-    # Installation de curl et unzip (nécessaire pour installer Terraform et Infracost)
+    # Installation des outils systèmes
     - apt-get update && apt-get install -y curl unzip
-    
-    # 1. Installation d'Infracost
-    - |
-      curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | \
-      sh -s -- -v ${INFRACOST_VERSION}
-    
-    # 2. Installation de Terraform (INDISPENSABLE pour qu'Infracost décode le fichier .binary)
+    # 1. Installation Infracost
+    - curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh -s -- -v ${INFRACOST_VERSION}
+    # 2. Installation Terraform + Mise en PATH (Indispensable pour décoder le binaire)
     - |
       curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform.zip
       unzip terraform.zip
+      chmod +x terraform
       mv terraform /usr/local/bin/
-      rm terraform.zip
-    
-    # 3. Installation des librairies Python FinOps (Supabase, etc.)
+    # 3. Préparation environnement Python
     - pip install --no-cache-dir -r requirements.txt
     - export PYTHONPATH=. 
-
   script:
-    # Analyse des coûts : on pointe sur le fichier binaire. 
-    # Grâce à l'installation de Terraform ci-dessus, l'erreur "Could not autodetect" va disparaître.
-    - infracost breakdown --path tfplan.binary --format json --out-file infracost-report.json
-    
-    # Tests unitaires du parser Python
+    # On entre dans le dossier infra pour qu'Infracost trouve les fichiers .tf
+    - cd $TF_ROOT
+    # ASTUCE CRITIQUE : On initialise sans backend pour récupérer les plugins Providers (Google)
+    # sans avoir besoin de s'authentifier au bucket GCS ici.
+    - terraform init -backend=false
+    # Analyse du binaire (remontée d'un cran avec ../ car on est dans infra/)
+    - infracost breakdown --path ../tfplan.binary --format json --out-file ../infracost-report.json
+    - cd ..
+    # Exécution des scripts de reporting
     - pytest tests/
-    
-    # Parser : calcul des coûts, insertion dans Supabase et génération du rapport Markdown
     - python src/parser.py > report.md
-    
-    # Publication automatique du rapport en commentaire de la Merge Request
     - python src/gitlab_comment.py
-
-    # Budget Gate : Bloque le déploiement si le coût dépasse le seuil défini (ex: 50 USD)
     - python src/budget_gate.py
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -116,4 +89,3 @@ infracost_analysis:
       - infracost-report.json
       - report.md
     expire_in: 1 week
-    
