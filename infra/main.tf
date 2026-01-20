@@ -11,7 +11,7 @@ terraform {
 
 # --- Ressources à créer ---
 
-resource "google_compute_instance" "ecoarch_vm" {
+resource "ecoarch_vm" {
   name         = var.instance_name
   machine_type = var.machine_type
   zone         = var.zone
