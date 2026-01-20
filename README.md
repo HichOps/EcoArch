@@ -1,236 +1,185 @@
-# 🌿 EcoArch: Plateforme de Gouvernance FinOps Automatisée
+# 🌿 EcoArch Platform: Cloud Cost Intelligence
 
 > **Shift-Left FinOps** : Estimez, contrôlez et optimisez les coûts Cloud avant même le déploiement.
-Ce projet implémente un pipeline CI/CD intelligent sur GitLab qui calcule le coût de l'infrastructure Google Cloud (Terraform) lors de chaque Merge Request. Il bloque automatiquement les changements qui dépassent le budget défini, commente les analyses de coûts sur les MR, et alimente un Dashboard de suivi financier via Supabase.
+
+**EcoArch** est une plateforme FinOps moderne qui combine un pipeline CI/CD intelligent (pour bloquer les dépassements budgétaires) et une interface de contrôle "Control Plane" temps réel pour simuler les coûts d'infrastructure.
+
+![Status](https://img.shields.io/badge/Status-Production-green)
+![Tech](https://img.shields.io/badge/Frontend-Reflex_(React)-5B21B6)
+![Backend](https://img.shields.io/badge/Logic-Python_3.12-blue)
+![Architecture](https://img.shields.io/badge/Architecture-Clean_Modular-orange)
 
 ---
 
-## 📑 Sommaire Interactif
+## 📑 Sommaire
 
 1. [🏗️ Architecture du Système](#architecture-du-système)
-2. [🔄 Workflow FinOps (CI/CD)](#workflow-finops-cicd)
-3. [🧠 Logique de la Budget Gate](#logique-de-la-budget-gate)
-4. [📂 Structure du Projet](#structure-du-projet)
-5. [🛠️ Stack Technique](#stack-technique)
-6. [🚀 Installation & Configuration](#installation--configuration)
-7. [📊 Base de Données & KPIs](#base-de-données--kpis)
+2. [🚀 Control Plane (Frontend Reflex)](#-control-plane-frontend-reflex)
+3. [🔄 Pipeline FinOps (CI/CD)](#-pipeline-finops-cicd)
+4. [🛠️ Installation & Démarrage](#️-installation--démarrage)
+5. [🧪 Tests & Qualité](#-tests--qualité)
 
 ---
 
 ## 🏗️ Architecture du Système
 
-Le pipeline orchestre plusieurs outils pour transformer du code Terraform en indicateurs financiers exploitables.
+Le projet suit une **Clean Architecture** stricte, séparant la logique métier (Domain) de l'interface utilisateur (Presentation).
 
 ```mermaid
 graph TD
-    %% Définition des styles
-    classDef gitlab fill:#fca5a5,stroke:#b91c1c,stroke-width:2px,color:black;
-    classDef terraform fill:#d8b4fe,stroke:#6b21a8,stroke-width:2px,color:black;
-    classDef infracost fill:#fde047,stroke:#a16207,stroke-width:2px,color:black;
-    classDef python fill:#86efac,stroke:#15803d,stroke-width:2px,color:black;
-    classDef db fill:#93c5fd,stroke:#1e40af,stroke-width:2px,color:black;
-    classDef dash fill:#ff9f43,stroke:#e67e22,stroke-width:2px,color:black;
-
-    User([👤 Développeur]) -->|Push Code| GitLab(🦊 GitLab CI/CD)
-    
-    subgraph CI_Pipeline [Pipeline FinOps]
-        GitLab --> TF[🏗️ Terraform Plan]
-        TF -->|Analyse locale| IC[💰 Infracost Analysis]
-        IC -->|Génère JSON| Report(📄 infracost-report.json)
-        
-        Report --> PyPars[🐍 Parser Python]
-        PyPars --> PyGate[🚧 Budget Gate]
+    subgraph "Frontend Layer (Reflex)"
+        UI[🖥️ Interface Web] --> State[🧠 State Manager]
+        State --> API[⚡ FastAPI Backend]
     end
 
-    PyPars -->|Stockage Données| Supa[(🗄️ Supabase DB)]
-    Supa --> Dash[📊 Dashboard App]
-    PyGate -->|Commentaire MR| MR[💬 GitLab Merge Request]
-    PyGate -->|Pass/Fail| Gate{🚦 Décision}
+    subgraph "Core Domain (src/)"
+        API --> Sim[🧮 Moteur Simulation]
+        API --> Config[⚙️ Configuration]
+        Sim --> Infracost[💰 Infracost CLI]
+    end
 
-    class GitLab,MR gitlab;
-    class TF terraform;
-    class IC,Report infracost;
-    class PyPars,PyGate python;
-    class Supa db;
-    class Dash dash;
+    subgraph "Data Layer"
+        State --> Supabase[(🗄️ Supabase DB)]
+    end
+
+    User([👤 Utilisateur]) --> UI
+
+```
+
+### Structure des Dossiers
+
+```text
+EcoArch/
+├── src/                  # 🧠 CORE DOMAIN (Logique Métier)
+│   ├── simulation.py     # Moteur de simulation (Infracost Wrapper)
+│   ├── config.py         # Configuration & Variables d'env
+│   └── budget_gate.py    # Script de gouvernance CI/CD
+├── frontend/             # ✨ PRESENTATION LAYER (Reflex UI)
+│   ├── rxconfig.py       # Configuration du projet Reflex
+│   ├── assets/           # Ressources statiques (Images, CSS)
+│   └── frontend/         # Code source de l'application
+│       ├── state.py      # State Management (Le Cerveau)
+│       ├── frontend.py   # Point d'entrée UI & Routing
+│       └── components/   # Composants réutilisables (Glassmorphism)
+│           └── cards.py  # Cartes KPI & Graphiques
+├── infra/                # 🏗️ INFRASTRUCTURE (Terraform)
+│   ├── main.tf
+│   └── variables.tf
+├── tests/                # 🧪 TESTS (Pytest)
+├── .env                  # 🔐 Secrets (API Keys)
+└── requirements.txt      # 📦 Dépendances Python
 
 ```
 
 ---
 
-## 🔄 Workflow FinOps (CI/CD)
+## 🚀 Control Plane (Frontend Reflex)
 
-Chaque modification de code déclenche une analyse en deux étapes : **Planification** (technique) et **Analyse** (financière).
+L'interface utilisateur a été entièrement réécrite avec **Reflex** (Framework Python vers React) pour offrir une expérience "App Native".
 
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Dev as 👤 Développeur
-    participant CI as 🦊 CI Runner
-    participant TF as 🏗️ Terraform
-    participant IC as 💰 Infracost
-    participant DB as 🗄️ Supabase
+### Fonctionnalités
 
-    Dev->>CI: Push Commit (Merge Request)
-    
-    rect rgb(240, 240, 255)
-        note right of CI: Stage: PLAN
-        CI->>TF: terraform plan (Validation technique)
-    end
-
-    rect rgb(235, 255, 235)
-        note right of CI: Stage: FINOPS
-        CI->>TF: terraform plan (Génération locale)
-        CI->>IC: infracost breakdown --path tfplan.binary
-        IC-->>CI: Estimation JSON
-        
-        CI->>CI: Script Parser.py (Calculs & KPIs)
-        CI->>DB: INSERT INTO cost_history
-        CI->>Dev: Commentaire automatique sur la MR
-    end
-
-    alt Coût < Budget (50$)
-        CI->>Dev: ✅ Pipeline SUCCEEDED (Budget OK)
-    else Coût > Budget (50$)
-        CI->>Dev: ❌ Pipeline FAILED (Budget Exceeded)
-    end
-
-```
+* **Simulateur Temps Réel** : Estimation instantanée des coûts (Compute + Storage) via Infracost.
+* **Design System** : Interface moderne (Glassmorphism, Animations, Mode Clair).
+* **Gouvernance Dashboard** : Visualisation de l'historique des déploiements (connecté à Supabase).
+* **Feedback Immédiat** : Indicateurs visuels de dépassement budgétaire.
 
 ---
 
-## 🧠 Logique de la "Budget Gate"
+## 🔄 Pipeline FinOps (CI/CD)
 
-Le script `src/budget_gate.py` agit comme une barrière de sécurité financière.
+Le workflow CI/CD (GitLab) reste actif pour protéger la branche `main`.
 
-```mermaid
-flowchart TD
-    %% Styles
-    classDef start fill:#f3f4f6,stroke:#374151,stroke-width:2px;
-    classDef logic fill:#c4b5fd,stroke:#5b21b6,stroke-width:2px;
-    classDef pass fill:#86efac,stroke:#166534,stroke-width:2px;
-    classDef fail fill:#fca5a5,stroke:#991b1b,stroke-width:2px;
+1. **Planification** : Terraform génère le plan d'infrastructure.
+2. **Analyse** : Infracost calcule le coût mensuel estimé.
+3. **Vérification** : Le script `src/budget_gate.py` compare le coût au budget (ex: 50$).
+* ✅ **< Budget** : Merge autorisé.
+* ❌ **> Budget** : Pipeline échoué, Merge bloqué.
 
-    Start((🏁 Start)) --> ReadJSON[📖 Lecture Rapport]
-    ReadJSON --> Extract[🔍 Extraction: total_monthly_cost]
-    Extract --> Check{💸 Coût > $50 ?}
-    
-    Check -- OUI --> Alert[🚨 ALERTE ROUGE]
-    %% CORRECTION ICI : Utilisation de guillemets et de <br/>
-    Alert --> Fail["❌ Exit Code 1 <br/>(Bloque le Merge)"]
-    
-    Check -- NON --> Success[✅ ALERTE VERTE]
-    %% CORRECTION ICI : Utilisation de guillemets et de <br/>
-    Success --> Pass["✔️ Exit Code 0 <br/>(Autorise le Merge)"]
 
-    class Start,ReadJSON,Extract start;
-    class Check logic;
-    class Success,Pass pass;
-    class Alert,Fail fail;
-```
 
 ---
 
-## 📂 Structure du Projet
+## 🛠️ Installation & Démarrage
+
+### Prérequis
+
+* Python 3.11+
+* Clé API Infracost (`INFRACOST_API_KEY`)
+* *(Linux/WSL)* Paquet `unzip` installé (`sudo apt install unzip`).
+
+### 1. Installation
 
 ```bash
-.
-├── .gitlab-ci.yml      # Orchestration du Pipeline CI/CD
-├── README.md           # Documentation du projet
-├── dashboard/          # Interface de visualisation
-│   └── app.py          # Application Dashboard (ex: Streamlit)
-├── infra/              # Code Terraform (IaC)
-│   ├── main.tf         # Ressources GCP (VM, Réseau...)
-│   ├── variables.tf    # Définition des variables
-│   ├── terraform.tfvars# Valeurs des variables (Environnement)
-│   ├── outputs.tf      # Sorties Terraform
-│   └── provider.tf     # Configuration Provider Google
-├── src/                # Cœur de la logique FinOps (Python)
-│   ├── budget_gate.py  # Bloque le pipeline si budget dépassé
-│   ├── gitlab_comment.py # Bot qui commente les Merge Requests
-│   ├── parser.py       # Transforme le JSON Infracost en KPI
-│   └── utils/          # Fonctions utilitaires partagées
-├── tests/              # Tests unitaires (Assurance Qualité)
-│   └── test_parser.py  # Tests du parser JSON
-└── requirements.txt    # Dépendances Python (Infracost, Supabase, etc.)
+git clone [https://gitlab.com/votre-repo/EcoArch.git](https://gitlab.com/votre-repo/EcoArch.git)
+cd EcoArch
+
+# Environnement virtuel
+python3 -m venv venv
+source venv/bin/activate
+
+# Dépendances
+pip install -r requirements.txt
 
 ```
 
+### 2. Configuration (.env)
+
+Créez un fichier `.env` à la racine :
+
+```env
+INFRACOST_API_KEY="ico-xxxx..."
+SUPABASE_URL="[https://xxx.supabase.co](https://xxx.supabase.co)"
+SUPABASE_SERVICE_KEY="eyJxh..."
+GCP_PROJECT_ID="mon-projet-gcp"
+
+```
+
+### 3. Lancer l'Application
+
+L'application Reflex se lance depuis le dossier `frontend`.
+
+**Pour Linux / macOS :**
+
+```bash
+cd frontend
+reflex run
+
+```
+
+**Pour WSL (Windows Subsystem for Linux) :**
+⚠️ Commande spécifique pour exposer le réseau vers Windows :
+
+```bash
+cd frontend
+HOSTNAME=0.0.0.0 reflex run --backend-host 0.0.0.0
+
+```
+
+Accédez ensuite à : **[http://localhost:3000](https://www.google.com/search?q=http://localhost:3000)**
+
 ---
 
-## 🛠️ Stack Technique
+## 🧪 Tests & Qualité
 
-| Technologie | Rôle | Version |
+La logique métier (`src/`) est couverte par des tests unitaires indépendants de l'interface.
+
+```bash
+# Lancer tous les tests
+pytest
+
+# Voir la couverture
+pytest --cov=src tests/
+
+```
+
+### Stack Technique
+
+| Composant | Technologie | Rôle |
 | --- | --- | --- |
-| **GitLab CI** | Orchestrateur du pipeline | SaaS |
-| **Terraform** | Infrastructure as Code (GCP) | `1.10.0` |
-| **Infracost** | Moteur de calcul des coûts Cloud | `v0.10.43` |
-| **Python** | Parsing, Logique métier, API GitLab | `3.11` |
-| **Supabase** | Base de données (Historique & Dashboard) | PostgreSQL |
+| **Frontend** | Reflex | UI Réactive (Python -> React) |
+| **Backend** | FastAPI | Serveur API (intégré à Reflex) |
+| **Pricing** | Infracost | Moteur de coûts Cloud |
+| **IaC** | Terraform | Infrastructure Google Cloud |
+| **DB** | Supabase | Stockage historique & Logs |
 
----
-
-## 🚀 Installation & Configuration
-
-### 1. Variables CI/CD (GitLab)
-
-Pour que le pipeline fonctionne, les variables suivantes doivent être définies dans **Settings > CI/CD > Variables** :
-
-* `GCP_ID_TOKEN` : Configuration OIDC (Gérée par le template d'auth).
-* `INFRACOST_API_KEY` : Clé API Infracost (Gratuite).
-* `SUPABASE_URL` : URL de votre projet Supabase.
-* `SUPABASE_SERVICE_KEY` : Clé secrète (`service_role`) pour l'écriture en DB.
-* `GL_TOKEN` : Token d'accès GitLab (Project Access Token) pour commenter sur les MR.
-* `ECOARCH_BUDGET_LIMIT` : Seuil budgétaire (ex: `50.00`).
-* `TF_STATE_BUCKET` : Bucket GCS pour le state Terraform.
-* `TF_STATE_PREFIX` : Préfixe du state (ex: `terraform/state`).
-
----
-
-## 📊 Base de Données & KPIs
-
-Les données collectées permettent de générer des vues SQL pour le suivi FinOps.
-
-### Création de la Table
-
-Dans le **SQL Editor** de Supabase :
-
-```sql
-CREATE TABLE cost_history (
-    id BIGINT GENERATED BY DEFAULT AS IDENTITY PRIMARY KEY,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    project_id TEXT,
-    branch_name TEXT,
-    commit_sha TEXT,
-    author TEXT,
-    total_monthly_cost NUMERIC,
-    diff_monthly_cost NUMERIC,
-    currency TEXT,
-    budget_limit NUMERIC,
-    status TEXT
-);
-
-```
-
-### Vue d'Optimisation (Money Saved)
-
-Cette vue calcule combien chaque commit a fait économiser (ou dépenser) par rapport au précédent.
-
-```sql
-CREATE VIEW vw_finops_optimization AS
-SELECT 
-    commit_sha,
-    author,
-    created_at,
-    total_monthly_cost as new_cost,
-    LAG(total_monthly_cost) OVER (ORDER BY created_at) as previous_cost,
-    LAG(total_monthly_cost) OVER (ORDER BY created_at) - total_monthly_cost as money_saved
-FROM cost_history
-WHERE branch_name = 'main' OR branch_name = 'feat/finops-bot-test'
-ORDER BY created_at DESC;
-
-```
-
----
-
-*Projet réalisé dans le cadre de la mise en place d'une gouvernance FinOps automatisée.*

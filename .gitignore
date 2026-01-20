@@ -17,7 +17,12 @@ env/
 build/
 dist/
 .env
+venv/
+
 
 # IDE
 .vscode/
-.idea/
+.idea/frontend/.web
+frontend/__pycache__
+frontend/frontend/__pycache__
+frontend/.web
