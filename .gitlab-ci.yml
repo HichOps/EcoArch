@@ -15,7 +15,7 @@ variables:
   # Versions des outils (Verrouillage pour la stabilité)
   TERRAFORM_VERSION: "1.10.0"
   PYTHON_VERSION: "3.11.10-slim"
-  INFRACOST_VERSION: "v0.10.39"
+  INFRACOST_VERSION: "v0.10.43"
 
 # --- TEMPLATES & AUTHENTIFICATION ---
 
