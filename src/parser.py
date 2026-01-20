@@ -10,13 +10,21 @@ class EcoArchParser:
         self.json_path = Path(json_path)
         if not self.json_path.exists():
             print(f"❌ Erreur : Le fichier '{json_path}' est introuvable.")
-            sys.exit(1)
-        self.data = self._load_data()
-        self.resources = self._flatten_resources()
+            # On ne quitte pas brutalement pour laisser les autres scripts tourner, 
+            # mais on initialise des données vides.
+            self.data = {}
+            self.resources = []
+        else:
+            self.data = self._load_data()
+            self.resources = self._flatten_resources()
 
     def _load_data(self) -> Dict[str, Any]:
-        with open(self.json_path, 'r') as f:
-            return json.load(f)
+        try:
+            with open(self.json_path, 'r') as f:
+                return json.load(f)
+        except json.JSONDecodeError:
+            print("❌ Erreur : Le fichier JSON est malformé.")
+            return {}
 
     def _safe_float(self, value: Any) -> float:
         """Convertit en float en gérant les valeurs nulles ou manquantes."""
@@ -33,7 +41,8 @@ class EcoArchParser:
             resources = breakdown.get("resources", []) or []
             for res in resources:
                 flattened.append({
-                    "name": res.get("name"),
+                    "name": res.get("name", "Unnamed"),
+                    "type": res.get("resourceType", "Unknown"), # Ajout du Type
                     "monthly_cost": self._safe_float(res.get("monthlyCost")),
                     "delta": self._safe_float(res.get("diffMonthlyCost"))
                 })
@@ -49,6 +58,8 @@ class EcoArchParser:
     def save_to_supabase(self):
         url = os.getenv("SUPABASE_URL")
         key = os.getenv("SUPABASE_SERVICE_KEY")
+        
+        # On ne bloque pas si pas de Supabase (utile pour tests locaux)
         if not url or not key:
             print("⏭️ Supabase credentials non trouvées (Variable Protected ?).")
             return
@@ -76,24 +87,17 @@ class EcoArchParser:
 
     def generate_markdown_report(self) -> str:
         metrics = self.extract_metrics()
-        report = [
-            f"## 🛠️ EcoArch FinOps Analysis",
-            f"**Total Mensuel Estimé :** `{metrics['total_monthly_cost']:.2f} {metrics['currency']}`\n"
-        ]
-        
-        if not self.resources:
-            report.append("ℹ️ Aucune ressource détectée dans ce plan (No changes).")
-        else:
-            report.append("### 🏆 Top 3 Ressources les plus chères")
-            report.append("| Ressource | Coût Mensuel |")
-            report.append("| :--- | :--- |")
-            sorted_res = sorted(self.resources, key=lambda x: x['monthly_cost'], reverse=True)[:3]
-            for res in sorted_res:
-                report.append(f"| `{res['name']}` | {res['monthly_cost']:.2f} {metrics['currency']} |")
-        
-        return "\n".join(report)
+        currency = metrics['currency']
+        total = metrics['total_monthly_cost']
+        diff = metrics['diff_monthly_cost']
 
-if __name__ == "__main__":
-    parser = EcoArchParser("infracost-report.json")
-    print(parser.generate_markdown_report())
-    parser.save_to_supabase()
+        # En-tête avec indicateurs visuels
+        report = [f"## 🛠️ EcoArch FinOps Analysis"]
+        report.append(f"**Total Mensuel Estimé :** `{total:.2f} {currency}`")
+        
+        if diff > 0:
+            report.append(f"**Variation :** 🔺 `+{diff:.2f} {currency}` (Hausse)")
+        elif diff < 0:
+            report.append(f"**Variation :** 🟢 `{diff:.2f} {currency}` (Économie)")
+        else:
+            report.append(f"**Variation :** ➖ `0.00 {currency}` (Stable)")
