@@ -18,7 +18,7 @@ variable "zone" {
 variable "instance_name" {
   description = "Nom de la VM"
   type        = string
-  default     = "ecoarch-demo-instance"
+  default     = "ecoarch-test-ultime"
 }
 
 variable "machine_type" {
