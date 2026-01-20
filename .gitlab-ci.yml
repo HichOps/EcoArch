@@ -1,4 +1,6 @@
 # Pipeline Master - EcoArch FinOps Platform
+# Ce pipeline assure la gouvernance financière automatisée de l'infrastructure GCP.
+
 stages:
   - plan
   - finops
@@ -12,20 +14,20 @@ variables:
   TF_VAR_project_id: "ecoarch-mvp-1768828854"
   TF_VAR_region: "us-central1"
   TF_VAR_zone: "us-central1-a"
-  # Versions des outils (Verrouillage pour la stabilité)
+  # Versions des outils (Verrouillage pour la stabilité du pipeline)
   TERRAFORM_VERSION: "1.10.0"
   PYTHON_VERSION: "3.11.10-slim"
   INFRACOST_VERSION: "v0.10.43"
 
 # --- TEMPLATES & AUTHENTIFICATION ---
 
-# Template pour l'authentification GCP via OIDC
+# Template pour l'authentification GCP via Workload Identity Federation
 .gcp_auth:
   id_tokens:
     GCP_ID_TOKEN:
       aud: https://iam.googleapis.com/projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
   before_script: &gcp_setup
-    # Configuration Application Default Credentials (ADC)
+    # Configuration des credentials temporaires Google Cloud
     - echo "${GCP_ID_TOKEN}" > ${CI_PROJECT_DIR}/.google_id_token
     - |
       echo "{
@@ -50,14 +52,14 @@ terraform_plan:
     entrypoint: [""] 
   script:
     - cd $TF_ROOT
-    # Injection de la configuration partielle du backend GCS
+    # Initialisation avec le backend GCS (Bucket de State)
     - |
       terraform init \
         -backend-config="bucket=${TF_STATE_BUCKET}" \
         -backend-config="prefix=${TF_STATE_PREFIX}"
-    # Génération du plan binaire
+    # Génération du plan binaire (Source de vérité pour Infracost)
     - terraform plan -out=../tfplan.binary
-    # Conversion en JSON pour Infracost et le Parser Python
+    # Export en JSON pour inspection ou scripts tiers
     - terraform show -json ../tfplan.binary > ../plan.json
   artifacts:
     paths:
@@ -71,30 +73,40 @@ infracost_analysis:
   image: python:${PYTHON_VERSION}
   before_script:
     - *gcp_setup
-    - apt-get update && apt-get install -y curl=7.88.*
-    # Installation de l'exécutable Infracost
+    # Installation de curl et unzip (nécessaire pour installer Terraform et Infracost)
+    - apt-get update && apt-get install -y curl unzip
+    
+    # 1. Installation d'Infracost
     - |
       curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | \
       sh -s -- -v ${INFRACOST_VERSION}
-    # Installation des dépendances (Supabase client inclus dans requirements.txt)
+    
+    # 2. Installation de Terraform (INDISPENSABLE pour qu'Infracost décode le fichier .binary)
+    - |
+      curl -fsSL https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip -o terraform.zip
+      unzip terraform.zip
+      mv terraform /usr/local/bin/
+      rm terraform.zip
+    
+    # 3. Installation des librairies Python FinOps (Supabase, etc.)
     - pip install --no-cache-dir -r requirements.txt
     - export PYTHONPATH=. 
+
   script:
-    # 1. Analyse FinOps (génère le fichier de base)
+    # Analyse des coûts : on pointe sur le fichier binaire. 
+    # Grâce à l'installation de Terraform ci-dessus, l'erreur "Could not autodetect" va disparaître.
     - infracost breakdown --path tfplan.binary --format json --out-file infracost-report.json
     
-    # 2. Qualité : Tests unitaires
+    # Tests unitaires du parser Python
     - pytest tests/
     
-    # 3. Intelligence FinOps : Parser + Supabase + Rapport Bot
-    # Le parser envoie les données à Supabase ET génère le Markdown
+    # Parser : calcul des coûts, insertion dans Supabase et génération du rapport Markdown
     - python src/parser.py > report.md
     
-    # 4. Publication du commentaire sur la Merge Request
-    # On utilise le fichier report.md généré par le parser
+    # Publication automatique du rapport en commentaire de la Merge Request
     - python src/gitlab_comment.py
 
-    # 5. Budget Gate : Décision finale (bloque si > budget_limit)
+    # Budget Gate : Bloque le déploiement si le coût dépasse le seuil défini (ex: 50 USD)
     - python src/budget_gate.py
   rules:
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
@@ -104,3 +116,4 @@ infracost_analysis:
       - infracost-report.json
       - report.md
     expire_in: 1 week
+    
