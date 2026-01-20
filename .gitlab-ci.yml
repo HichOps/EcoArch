@@ -81,7 +81,7 @@ infracost_analysis:
     - export PYTHONPATH=. 
   script:
     # 1. Analyse FinOps (génère le fichier de base)
-    - infracost breakdown --path plan.json --format json --out-file infracost-report.json
+    - infracost breakdown --path tfplan.binary --format json --out-file infracost-report.json
     
     # 2. Qualité : Tests unitaires
     - pytest tests/
