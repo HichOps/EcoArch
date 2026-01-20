@@ -7,17 +7,24 @@ from supabase import create_client, Client
 
 class EcoArchParser:
     def __init__(self, json_path: str):
+        """Initialise le parser et vérifie l'existence du fichier source."""
         self.json_path = Path(json_path)
+        
         if not self.json_path.exists():
-            raise FileNotFoundError(f"Fichier non trouvé : {json_path}")
+            print(f"❌ Erreur critique : Le fichier '{json_path}' est introuvable.")
+            print("💡 Vérifiez que le job 'infracost_analysis' a bien généré ce rapport.")
+            sys.exit(1)
+            
         self.data = self._load_data()
         self.resources = self._flatten_resources()
 
     def _load_data(self) -> Dict[str, Any]:
+        """Charge le contenu JSON du rapport Infracost."""
         with open(self.json_path, 'r') as f:
             return json.load(f)
 
     def _flatten_resources(self) -> List[Dict[str, Any]]:
+        """Extrait et aplatit la liste des ressources pour faciliter l'analyse."""
         flattened = []
         projects = self.data.get("projects", [])
         for project in projects:
@@ -34,7 +41,7 @@ class EcoArchParser:
         return flattened
 
     def extract_metrics(self) -> Dict[str, Any]:
-        """Extrait les métriques financières globales."""
+        """Extrait les métriques financières globales du run."""
         return {
             "total_monthly_cost": float(self.data.get("totalMonthlyCost", 0)),
             "diff_monthly_cost": float(self.data.get("diffTotalMonthlyCost", 0)),
@@ -50,14 +57,15 @@ class EcoArchParser:
             print("⏭️ Supabase credentials not found, skipping persistence.")
             return
 
+        # Connexion au client Supabase
         supabase: Client = create_client(url, key)
         metrics = self.extract_metrics()
         
-        # Calcul du statut (Passed/Failed) basé sur la limite
+        # Récupération de la limite budgétaire (défaut à 100.0)
         limit = float(os.getenv("ECOARCH_BUDGET_LIMIT", 100.0))
         status = "PASSED" if metrics["total_monthly_cost"] <= limit else "FAILED"
 
-        # Préparation de l'enregistrement (Architecture alignée avec le SQL)
+        # Préparation de l'enregistrement aligné sur l'architecture SQL
         record = {
             "project_id": os.getenv("CI_PROJECT_NAME", "ecoarch-local"),
             "branch_name": os.getenv("CI_COMMIT_REF_NAME", "local"),
@@ -71,13 +79,14 @@ class EcoArchParser:
         }
 
         try:
-            response = supabase.table("cost_history").insert(record).execute()
+            # Insertion dans la table cost_history
+            supabase.table("cost_history").insert(record).execute()
             print(f"✅ Data persisted to Supabase (Status: {status})")
         except Exception as e:
             print(f"❌ Failed to persist data to Supabase: {e}")
 
     def generate_markdown_report(self) -> str:
-        """Génère le rapport Markdown pour le bot GitLab."""
+        """Génère le corps du rapport pour le bot GitLab."""
         metrics = self.extract_metrics()
         report = [
             f"## 🛠️ EcoArch FinOps Analysis",
@@ -87,6 +96,7 @@ class EcoArchParser:
             "| :--- | :--- |"
         ]
         
+        # Tri des ressources par coût décroissant
         sorted_res = sorted(self.resources, key=lambda x: x['monthly_cost'], reverse=True)[:3]
         for res in sorted_res:
             report.append(f"| `{res['name']}` | {res['monthly_cost']:.2f} {metrics['currency']} |")
@@ -95,10 +105,13 @@ class EcoArchParser:
 
 if __name__ == "__main__":
     try:
+        # Fichier généré par la commande Infracost dans le job précédent
         parser = EcoArchParser("infracost-report.json")
-        # 1. On affiche le rapport pour le bot
+        
+        # 1. Génération du rapport texte (sera capturé par report.md dans le CI)
         print(parser.generate_markdown_report())
-        # 2. On sauvegarde dans la base de données
+        
+        # 2. Persistance dans la base de données
         parser.save_to_supabase()
     except Exception as e:
         print(f"Error: {e}")
