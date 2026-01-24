@@ -1,11 +1,10 @@
 import reflex as rx
 import sys
-import os
 from pathlib import Path
 from typing import Dict, Any, List
 from supabase import create_client
 
-# --- BRIDGE VERS LOGIQUE EXISTANTE ---
+# --- BRIDGE ---
 current_file_path = Path(__file__).resolve()
 project_root = current_file_path.parents[2]
 sys.path.append(str(project_root))
@@ -13,130 +12,146 @@ sys.path.append(str(project_root))
 try:
     from src.config import GCPConfig, Config
     from src.simulation import InfracostSimulator
-except ImportError as e:
-    print(f"❌ Erreur d'import : {e}")
-    # Fallbacks...
+except ImportError:
     class GCPConfig:
-        REGIONS = ["us-central1"]
-        INSTANCE_TYPES = ["e2-medium"]
+        REGIONS = []
+        INSTANCE_TYPES = []
+        DB_TIERS = [] 
+        DB_VERSIONS = []
     class Config:
         DEFAULT_BUDGET_LIMIT = 50.0
         SUPABASE_URL = ""
         SUPABASE_SERVICE_KEY = ""
+        GCP_PROJECT_ID = ""
 
 class State(rx.State):
-    # --- VARIABLES SIMULATEUR ---
-    region: str = "europe-west1"
-    instance_type: str = "e2-medium"
-    storage: int = 50
+    # --- UI STATE ---
+    # Type de service sélectionné : "compute" ou "sql"
+    selected_service: str = "compute"
+    
+    # Options Compute
+    selected_machine: str = "e2-medium"
+    selected_storage: int = 50
+    
+    # Options SQL (Nouveau)
+    selected_db_tier: str = "db-f1-micro"
+    selected_db_version: str = "POSTGRES_14"
+
+    # --- PANIER & RESULTATS ---
+    resource_list: List[Dict[str, Any]] = []
     cost: float = 0.0
     details: Dict[str, Any] = {}
     is_loading: bool = False
     error_msg: str = ""
-    
-    # --- VARIABLES GOUVERNANCE (Nouveau) ---
     history: List[Dict] = []
-    
-    # Listes constantes
-    regions: List[str] = GCPConfig.REGIONS
+
+    # --- CONSTANTES POUR SELECTS ---
     instance_types: List[str] = GCPConfig.INSTANCE_TYPES
+    db_tiers: List[str] = GCPConfig.DB_TIERS
+    db_versions: List[str] = GCPConfig.DB_VERSIONS
 
-    # --- INITIALISATION ---
-    def load_history(self):
-        """Récupère l'historique depuis Supabase au chargement"""
-        if Config.SUPABASE_URL and Config.SUPABASE_SERVICE_KEY:
-            try:
-                sb = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_KEY)
-                response = sb.table("cost_history").select("*").order("created_at", desc=True).execute()
-                # On formate un peu les données pour l'affichage
-                raw_data = response.data
-                for item in raw_data:
-                    # On arrondit pour l'affichage propre
-                    item["total_monthly_cost"] = round(float(item["total_monthly_cost"]), 2)
-                    # On simplifie la date (juste YYYY-MM-DD HH:MM)
-                    if "T" in item["created_at"]:
-                         item["display_date"] = item["created_at"].split("T")[0]
-                    else:
-                         item["display_date"] = item["created_at"]
-                
-                self.history = raw_data
-            except Exception as e:
-                print(f"Erreur Supabase: {e}")
-
-    # --- COMPUTED VARS (Simulateur) ---
-    @rx.var
-    def budget_status_color(self) -> str:
-        if self.cost == 0: return "gray"
-        return "green" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "red"
-
-    @rx.var
-    def budget_accent_color(self) -> str:
-        if self.cost == 0: return "gray"
-        return "grass" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "tomato"
-
-    @rx.var
-    def budget_icon(self) -> str:
-        if self.cost == 0: return "minus"
-        return "check" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "alert-triangle"
-
-    @rx.var
-    def budget_label(self) -> str:
-        if self.cost == 0: return "En attente"
-        return "Budget Respecté" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "Budget Dépassé"
-
-    @rx.var
-    def chart_data(self) -> List[Dict]:
-        if not self.details or 'projects' not in self.details: return []
-        data = []
-        try:
-            resources = self.details['projects'][0]['breakdown']['resources']
-            for res in resources:
-                c_str = res.get('monthlyCost') or res.get('totalMonthlyCost')
-                if c_str:
-                    try:
-                        val = float(c_str)
-                        if val > 0:
-                            name = "Compute" if "instance" in res['name'] else ("Stockage" if "disk" in res['name'] else "Autre")
-                            data.append({"name": name, "value": val})
-                    except: pass
-        except: pass
-        return data
-
-    # --- COMPUTED VARS (Gouvernance) ---
-    @rx.var
-    def last_run_cost(self) -> str:
-        if not self.history: return "0.00 $"
-        return f"{self.history[0]['total_monthly_cost']} $"
-
-    @rx.var
-    def last_run_status(self) -> str:
-        if not self.history: return "Inconnu"
-        return "Conforme" if self.history[0]['status'] == 'PASSED' else "Non Conforme"
-
-    @rx.var
-    def last_run_color(self) -> str:
-        if not self.history: return "gray"
-        return "grass" if self.history[0]['status'] == 'PASSED' else "tomato"
+    # --- SETTERS ---
+    def set_service(self, value: str): self.selected_service = value
+    def set_machine(self, value: str): self.selected_machine = value
+    def set_storage(self, value: List[float]): self.selected_storage = int(value[0])
+    def set_db_tier(self, value: str): self.selected_db_tier = value
+    def set_db_version(self, value: str): self.selected_db_version = value
 
     # --- ACTIONS ---
-    def set_region(self, value: str): self.region = value
-    def set_instance_type(self, value: str): self.instance_type = value
-    def set_storage_value(self, value: List[float]): self.storage = int(value[0])
+    def add_resource(self):
+        """Crée l'objet ressource selon le type choisi"""
+        if self.selected_service == "compute":
+            res = {
+                "type": "compute",
+                "machine_type": self.selected_machine,
+                "disk_size": self.selected_storage,
+                "display_name": f"VM - {self.selected_machine}"
+            }
+        elif self.selected_service == "sql":
+            res = {
+                "type": "sql",
+                "db_tier": self.selected_db_tier,
+                "db_version": self.selected_db_version,
+                "display_name": f"SQL - {self.selected_db_tier}"
+            }
+        
+        self.resource_list.append(res)
+        return State.run_simulation
+
+    def remove_resource(self, index: int):
+        if 0 <= index < len(self.resource_list):
+            self.resource_list.pop(index)
+            return State.run_simulation
 
     def run_simulation(self):
         self.is_loading = True
         self.error_msg = ""
         yield
         try:
-            sim = InfracostSimulator()
-            result = sim.simulate(self.instance_type, self.region, self.storage)
-            if result.success:
-                self.cost = result.monthly_cost
-                self.details = result.details
+            # Si panier vide, on ne simule rien
+            if not self.resource_list:
+                self.cost = 0.0
+                self.details = {}
             else:
-                self.error_msg = result.error_message
-                self.cost = 0.0     
+                sim = InfracostSimulator(project_id=Config.GCP_PROJECT_ID)
+                result = sim.simulate(self.resource_list)
+                if result.success:
+                    self.cost = result.monthly_cost
+                    self.details = result.details
+                else:
+                    self.cost = 0.0
+                    self.error_msg = result.error_message
         except Exception as e:
             self.error_msg = str(e)
         finally:
             self.is_loading = False
+
+    def load_history(self):
+        if not (Config.SUPABASE_URL and Config.SUPABASE_SERVICE_KEY): return
+        try:
+            sb = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_KEY)
+            response = sb.table("cost_history").select("*").order("created_at", desc=True).limit(20).execute()
+            data = response.data
+            for item in data:
+                item["total_monthly_cost"] = round(float(item.get("total_monthly_cost", 0)), 2)
+                item["display_date"] = item.get("created_at", "").split("T")[0]
+            self.history = data
+        except Exception: pass
+
+    # --- COMPUTED UI ---
+    @rx.var
+    def budget_status_color(self) -> str:
+        return "green" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "red"
+    
+    @rx.var
+    def budget_icon(self) -> str:
+        # CORRECTION ICONE ICI
+        return "check" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "triangle-alert"
+
+    @rx.var
+    def budget_label(self) -> str:
+        return "Budget OK" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "Budget Dépassé"
+
+    @rx.var
+    def chart_data(self) -> List[Dict]:
+        if not self.details: return []
+        data = []
+        try:
+            for project in self.details.get('projects', []):
+                for res in project.get('breakdown', {}).get('resources', []):
+                    val = float(res.get('monthlyCost', 0))
+                    if val > 0:
+                        name = "SQL" if "sql" in res['name'] else ("VM" if "instance" in res['name'] else "Disk")
+                        data.append({"name": name, "value": val})
+        except: pass
+        return data
+
+    @rx.var
+    def last_run_cost(self) -> str:
+        return f"{self.history[0]['total_monthly_cost']} $" if self.history else "0.00 $"
+    @rx.var
+    def last_run_status(self) -> str:
+        return "Conforme" if self.history and self.history[0].get('status') == 'PASSED' else "Non Conforme"
+    @rx.var
+    def last_run_color(self) -> str:
+        return "grass" if self.history and self.history[0].get('status') == 'PASSED' else "tomato"

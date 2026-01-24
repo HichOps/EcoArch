@@ -2,203 +2,223 @@ import reflex as rx
 from .state import State
 from .components.cards import price_hero, card_container, stat_card
 
-# --- STYLE GLOBAL ---
 bg_style = {
     "background": "radial-gradient(circle at 50% 0%, #eef2ff 0%, #f8fafc 100%)",
     "min_height": "100vh",
 }
 
+def resource_item(item: dict, index: int):
+    """Affiche un élément du panier avec une icône adaptée"""
+    # Choix de l'icône selon le type
+    icon = rx.cond(item["type"] == "sql", "database", "server")
+    
+    return rx.box(
+        rx.hstack(
+            rx.icon(icon, size=18, color=rx.color("indigo", 9)),
+            rx.vstack(
+                rx.text(item["display_name"], weight="bold", size="2"),
+                rx.cond(
+                    item["type"] == "compute",
+                    rx.text(f"{item['disk_size']} GB SSD", size="1", color=rx.color("slate", 10)),
+                    rx.text(f"Ver: {item['db_version']}", size="1", color=rx.color("slate", 10))
+                ),
+                align="start", spacing="1"
+            ),
+            rx.spacer(),
+            rx.button(
+                rx.icon("trash-2", size=16),
+                on_click=lambda: State.remove_resource(index),
+                variant="ghost", color_scheme="ruby", size="1"
+            ),
+            align="center", width="100%", padding="12px",
+            border_bottom=f"1px solid {rx.color('slate', 4)}"
+        ),
+        width="100%"
+    )
+
 def index():
     return rx.box(
-        # --- HEADER ---
+        # HEADER
         rx.box(
             rx.container(
                 rx.hstack(
                     rx.hstack(
                         rx.icon("leaf", color=rx.color("grass", 9), size=24),
-                        rx.heading("EcoArch", size="6", weight="bold", letter_spacing="-1px"),
-                        rx.text("Platform", size="6", weight="medium", color=rx.color("slate", 10)),
-                        spacing="2",
-                        align="center"
+                        rx.heading("EcoArch", size="6", weight="bold"),
+                        rx.text("Architect", size="6", color=rx.color("slate", 10)),
+                        spacing="2", align="center"
                     ),
                     rx.spacer(),
-                    rx.badge("Control Plane", variant="outline", color_scheme="gray", radius="full"),
-                    width="100%",
-                    align="center",
+                    rx.badge("V3 Multi-Service", variant="outline", color_scheme="indigo", radius="full"),
+                    width="100%", align="center",
                 ),
                 padding_y="5",
             ),
             position="sticky", top="0", z_index="50",
-            backdrop_filter="blur(12px)",
-            border_bottom="1px solid rgba(255,255,255,0.5)",
-            width="100%",
+            backdrop_filter="blur(12px)", border_bottom="1px solid rgba(255,255,255,0.5)", width="100%",
         ),
 
-        # --- CONTENU PRINCIPAL ---
+        # CONTENU
         rx.container(
             rx.tabs.root(
-                # --- NAVIGATION ONGLETS ---
                 rx.tabs.list(
-                    rx.tabs.trigger("Gouvernance Dashboard", value="gov"),
-                    rx.tabs.trigger("Simulateur Temps Réel", value="sim"),
+                    rx.tabs.trigger("Architecture Builder", value="sim"),
+                    rx.tabs.trigger("Gouvernance", value="gov"),
                     size="2",
                 ),
                 
-                # =========================================
-                # ONGLET 1 : GOUVERNANCE
-                # =========================================
-                rx.tabs.content(
-                    rx.vstack(
-                        rx.heading("Vue d'ensemble CI/CD", size="7", weight="bold", margin_y="1rem"),
-                        
-                        # KPI GRID
-                        rx.grid(
-                            stat_card("Dernier Coût", State.last_run_cost, "Pipeline GitLab", "dollar-sign", "indigo"),
-                            stat_card("Statut", State.last_run_status, "Conformité Budget", "shield-check", State.last_run_color),
-                            stat_card("Budget Limite", "50.00 $", "Référentiel Hard Limit", "target", "gray"),
-                            columns="3",
-                            spacing="4",
-                            width="100%"
-                        ),
-                        
-                        # GRAPHIQUE HISTORIQUE
-                        card_container(
-                             rx.vstack(
-                                rx.text("Évolution des coûts", weight="bold", size="3", color=rx.color("slate", 11)),
-                                rx.recharts.area_chart(
-                                    rx.recharts.area(
-                                        data_key="total_monthly_cost",
-                                        stroke="#10b981",
-                                        fill="#10b981",
-                                        fill_opacity=0.2
-                                    ),
-                                    rx.recharts.x_axis(data_key="display_date"),
-                                    rx.recharts.y_axis(),
-                                    rx.recharts.cartesian_grid(stroke_dasharray="3 3"),
-                                    rx.recharts.tooltip(),
-                                    data=State.history,
-                                    height=300,
-                                    width="100%",
-                                ),
-                                align="start",
-                                width="100%"
-                             )
-                        ),
-                        
-                        # TABLEAU
-                        rx.box(
-                            rx.heading("Derniers déploiements", size="4", margin_bottom="1rem"),
-                            rx.table.root(
-                                rx.table.header(
-                                    rx.table.row(
-                                        rx.table.column_header_cell("Date"),
-                                        rx.table.column_header_cell("Auteur"),
-                                        rx.table.column_header_cell("Branche"),
-                                        rx.table.column_header_cell("Coût"),
-                                        rx.table.column_header_cell("Statut"),
-                                    ),
-                                ),
-                                rx.table.body(
-                                    rx.foreach(
-                                        State.history,
-                                        lambda item: rx.table.row(
-                                            rx.table.cell(item["display_date"]),
-                                            rx.table.cell(item["author"]),
-                                            rx.table.cell(item["branch_name"]),
-                                            rx.table.cell(f"{item['total_monthly_cost']} $"),
-                                            rx.table.cell(
-                                                rx.badge(
-                                                    item["status"], 
-                                                    color_scheme=rx.cond(item["status"] == "PASSED", "grass", "tomato")
-                                                )
-                                            ),
-                                        )
-                                    )
-                                ),
-                                variant="surface",
-                                width="100%",
-                            ),
-                            margin_top="2rem",
-                            width="100%"
-                        ),
-                        
-                        spacing="6",
-                        width="100%",
-                    ),
-                    value="gov",
-                    padding_top="2rem",
-                ),
-
-                # =========================================
-                # ONGLET 2 : SIMULATEUR
-                # =========================================
+                # --- ONGLET 1 : BUILDER ---
                 rx.tabs.content(
                     rx.grid(
-                        # Configuration (Gauche)
-                        card_container(
-                            rx.vstack(
-                                rx.hstack(
-                                    rx.icon("sliders-horizontal", size=18),
-                                    rx.text("Paramètres", weight="bold", size="3"),
-                                    margin_bottom="1rem",
-                                    color=rx.color("slate", 11)
+                        # COLONNE GAUCHE : FORMULAIRE
+                        rx.vstack(
+                            rx.heading("Configurer un service", size="4", weight="bold"),
+                            card_container(
+                                rx.vstack(
+                                    rx.text("Type de Service", size="2", weight="bold", color=rx.color("slate", 10)),
+                                    # SELECTEUR PRINCIPAL (Compute vs SQL)
+                                    rx.select(
+                                        ["compute", "sql"],
+                                        value=State.selected_service,
+                                        on_change=State.set_service,
+                                        width="100%", variant="soft"
+                                    ),
+                                    
+                                    rx.divider(margin_y="1rem"),
+
+                                    # --- FORMULAIRE COMPUTE (VM) ---
+                                    rx.cond(
+                                        State.selected_service == "compute",
+                                        rx.vstack(
+                                            rx.text("Configuration Machine", size="2", weight="bold", color=rx.color("slate", 10)),
+                                            rx.select(
+                                                State.instance_types,
+                                                value=State.selected_machine,
+                                                on_change=State.set_machine,
+                                                width="100%", variant="soft",
+                                            ),
+                                            rx.text("Stockage SSD", size="2", weight="bold", color=rx.color("slate", 10), margin_top="1rem"),
+                                            rx.badge(f"{State.selected_storage} GB", variant="solid", color_scheme="indigo", radius="full"),
+                                            rx.slider(
+                                                default_value=[50], min=10, max=1000,
+                                                on_change=State.set_storage,
+                                                width="100%", color_scheme="indigo",
+                                            ),
+                                            width="100%"
+                                        )
+                                    ),
+
+                                    # --- FORMULAIRE SQL (DATABASE) ---
+                                    rx.cond(
+                                        State.selected_service == "sql",
+                                        rx.vstack(
+                                            rx.text("Puissance (Tier)", size="2", weight="bold", color=rx.color("slate", 10)),
+                                            rx.select(
+                                                State.db_tiers,
+                                                value=State.selected_db_tier,
+                                                on_change=State.set_db_tier,
+                                                width="100%", variant="soft",
+                                            ),
+                                            rx.text("Version Moteur", size="2", weight="bold", color=rx.color("slate", 10), margin_top="1rem"),
+                                            rx.select(
+                                                State.db_versions,
+                                                value=State.selected_db_version,
+                                                on_change=State.set_db_version,
+                                                width="100%", variant="soft",
+                                            ),
+                                            width="100%"
+                                        )
+                                    ),
+                                    
+                                    # BOUTON AJOUTER
+                                    rx.button(
+                                        rx.hstack(rx.text("Ajouter au panier"), rx.icon("plus", size=16)),
+                                        on_click=State.add_resource,
+                                        size="3", width="100%", margin_top="2rem",
+                                        variant="solid", color_scheme="indigo",
+                                    ),
+                                    align="start", width="100%"
                                 ),
-                                rx.text("Région", size="2", weight="bold"),
-                                rx.select(State.regions, value=State.region, on_change=State.set_region, width="100%", variant="soft"),
-                                rx.text("Instance", size="2", weight="bold", margin_top="1rem"),
-                                rx.select(State.instance_types, value=State.instance_type, on_change=State.set_instance_type, width="100%", variant="soft"),
-                                rx.hstack(rx.text("Stockage"), rx.spacer(), rx.badge(f"{State.storage} GB")),
-                                rx.slider(default_value=[50], min=10, max=1000, on_change=State.set_storage_value, width="100%"),
-                                rx.button(
-                                    rx.hstack(rx.text("Lancer l'estimation"), rx.icon("sparkles", size=16)),
-                                    on_click=State.run_simulation,
-                                    loading=State.is_loading,
-                                    size="4", width="100%", margin_top="2rem", variant="solid", color_scheme="grass",
-                                    style={"box_shadow": "0 10px 15px -3px rgba(34, 197, 94, 0.4)"}
-                                ),
-                                width="100%"
+                                bg_color="white"
                             ),
-                            bg_color="white"
+                            width="100%"
                         ),
-                        # Résultats (Droite)
-                        rx.box(
+
+                        # COLONNE DROITE : PANIER
+                        rx.vstack(
+                            rx.heading("Votre Infrastructure", size="4", weight="bold"),
+                            card_container(
+                                rx.vstack(
+                                    rx.cond(
+                                        State.resource_list,
+                                        rx.foreach(State.resource_list, resource_item),
+                                        rx.center(rx.text("Panier vide", color="gray", style={"font_style": "italic"}), padding="20px", width="100%")
+                                    ),
+                                    width="100%"
+                                ),
+                                bg_color="rgba(255,255,255,0.9)"
+                            ),
+                            
+                            # ERREURS (Correction Icône ici)
+                            rx.cond(
+                                State.error_msg != "",
+                                rx.callout.root(
+                                    rx.callout.icon(rx.icon("triangle-alert")), # <--- NOM CORRIGÉ
+                                    rx.callout.text(State.error_msg),
+                                    color_scheme="ruby", role="alert", width="100%"
+                                )
+                            ),
+
+                            # PRIX TOTAL (Correction Logic ici)
                             rx.cond(
                                 State.cost > 0,
                                 rx.vstack(
-                                    price_hero(State.cost, State.budget_accent_color, State.budget_icon, State.budget_label),
+                                    # <--- CORRECTION MAJEURE ICI : Utilisation de rx.cond au lieu de if/else
+                                    price_hero(
+                                        State.cost, 
+                                        rx.cond(State.cost <= 50, "grass", "tomato"), 
+                                        "check", 
+                                        "Total Mensuel"
+                                    ),
+                                    
                                     card_container(
                                         rx.recharts.pie_chart(
-                                            rx.recharts.pie(data=State.chart_data, data_key="value", name_key="name", cx="50%", cy="50%", inner_radius=70, outer_radius=90, fill="#8884d8", padding_angle=2),
-                                            rx.recharts.legend(), height=250, width="100%"
+                                            rx.recharts.pie(
+                                                data=State.chart_data, data_key="value", name_key="name",
+                                                cx="50%", cy="50%", inner_radius=60, outer_radius=80, fill="#8884d8"
+                                            ),
+                                            rx.recharts.legend(), height=200, width="100%"
                                         ),
-                                        bg_color="rgba(255,255,255,0.6)"
+                                        bg_color="rgba(255,255,255,0.5)"
                                     ),
-                                    width="100%", spacing="5"
-                                ),
-                                rx.center(
-                                    rx.vstack(
-                                        rx.icon("bar-chart-2", size=64, color=rx.color("slate", 5)),
-                                        rx.text("En attente de configuration", weight="bold", color=rx.color("slate", 8)),
-                                        spacing="4", align="center"
-                                    ),
-                                    height="100%", min_height="400px", border=f"2px dashed {rx.color('slate', 6)}", border_radius="24px", bg="rgba(255,255,255,0.3)"
+                                    width="100%", spacing="4"
                                 )
-                            )
+                            ),
+                            
+                            # SPINNER
+                            rx.cond(
+                                State.is_loading,
+                                rx.center(rx.spinner(color="indigo", size="3"), width="100%", padding="2rem")
+                            ),
+                            width="100%", spacing="4"
                         ),
                         columns="2", spacing="8", width="100%"
                     ),
-                    value="sim",
-                    padding_top="2rem",
+                    value="sim", padding_top="2rem",
+                ),
+
+                # --- ONGLET 2 : GOUVERNANCE ---
+                rx.tabs.content(
+                    rx.center(rx.text("Historique des coûts (voir State.py pour implémentation complète)")),
+                    value="gov", padding_top="2rem",
                 ),
                 
-                default_value="gov",
-                width="100%",
+                default_value="sim", width="100%",
             ),
             size="3",
         ),
-        style=bg_style,
-        font_family="Inter",
+        style=bg_style, font_family="Inter",
     )
 
-app = rx.App(theme=rx.theme(appearance="light", accent_color="grass", radius="large"))
-app.add_page(index, title="EcoArch Control Plane", on_load=State.load_history)
+app = rx.App(theme=rx.theme(appearance="light", accent_color="indigo", radius="large"))
+app.add_page(index, title="EcoArch V3", on_load=State.load_history)

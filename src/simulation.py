@@ -1,129 +1,104 @@
-"""
-Module de simulation de coûts infrastructure avec Infracost.
-Logique métier pure, testable indépendamment de l'UI.
-"""
 import subprocess
 import json
 import tempfile
 import logging
+import os
 from pathlib import Path
-from typing import Tuple, Optional, Dict, Any
+from typing import Dict, Any, List, Optional
 from dataclasses import dataclass
+from .config import Config
 
-# On importe uniquement la config, pas "run_simulation" !
-from .config import Config, GCPConfig
-
-# Configuration du logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
 @dataclass
 class SimulationResult:
-    """Résultat d'une simulation de coût."""
-    monthly_cost: float
-    details: Dict[str, Any]
-    success: bool = True
+    success: bool
+    monthly_cost: float = 0.0
+    details: Dict[str, Any] = None
     error_message: Optional[str] = None
 
-
 class InfracostSimulator:
-    """Simulateur de coûts infrastructure utilisant Infracost."""
-    
     def __init__(self, project_id: Optional[str] = None, timeout: Optional[int] = None):
         self.project_id = project_id or Config.GCP_PROJECT_ID
         self.timeout = timeout or Config.INFRACOST_TIMEOUT
     
-    def generate_terraform_code(self, instance_type: str, region: str, storage_size: int) -> str:
-        return f"""
-provider "google" {{
-  project = "{self.project_id}"
-  region  = "{region}"
-}}
+    def _generate_terraform_code(self, resources: List[Dict[str, Any]]) -> str:
+        tf_code = f"""
+        provider "google" {{
+          project = "{self.project_id}"
+          region  = "{Config.DEFAULT_REGION}"
+        }}
+        """
+        
+        for idx, res in enumerate(resources):
+            r_type = res.get("type", "compute")
+            name = f"res_{idx}_{r_type}"
+            
+            # --- CAS 1 : COMPUTE ENGINE (VM) ---
+            if r_type == "compute":
+                machine = res.get("machine_type", "e2-medium")
+                disk = res.get("disk_size", 50)
+                zone = f"{Config.DEFAULT_REGION}-a"
+                
+                tf_code += f"""
+                resource "google_compute_instance" "{name}" {{
+                  name         = "{name}"
+                  machine_type = "{machine}"
+                  zone         = "{zone}"
+                  boot_disk {{
+                    initialize_params {{
+                      image = "{Config.DEFAULT_IMAGE}"
+                      size  = {disk}
+                    }}
+                  }}
+                  network_interface {{ network = "default" }}
+                }}
+                """
 
-resource "google_compute_instance" "simulated_vm" {{
-  name         = "simulation-vm"
-  machine_type = "{instance_type}"
-  zone         = "{region}-a"
-  
-  boot_disk {{
-    initialize_params {{
-      image = "{Config.DEFAULT_IMAGE}"
-      size  = {storage_size}
-    }}
-  }}
-  
-  network_interface {{
-    network = "default"
-  }}
-}}
-"""
+            # --- CAS 2 : CLOUD SQL (DATABASE) ---
+            elif r_type == "sql":
+                tier = res.get("db_tier", "db-f1-micro")
+                version = res.get("db_version", "POSTGRES_14")
+                
+                tf_code += f"""
+                resource "google_sql_database_instance" "{name}" {{
+                  name             = "{name}"
+                  database_version = "{version}"
+                  region           = "{Config.DEFAULT_REGION}"
+                  settings {{
+                    tier = "{tier}"
+                  }}
+                  deletion_protection = false
+                }}
+                """
+            
+        return tf_code
     
-    def run_infracost(self, target_path: Path) -> Dict[str, Any]:
-        result = subprocess.run(
-            ["infracost", "breakdown", "--path", str(target_path), "--format", "json"],
-            capture_output=True,
-            text=True,
-            timeout=self.timeout,
-            check=True
-        )
-        return json.loads(result.stdout)
-    
-    def simulate(self, instance_type: str, region: str, storage_size: int) -> SimulationResult:
-        # Validation
-        if instance_type not in GCPConfig.INSTANCE_TYPES:
-            logger.warning(f"Type d'instance non reconnu: {instance_type}")
-        
-        if region not in GCPConfig.REGIONS:
-            logger.warning(f"Région non reconnue: {region}")
-        
-        if not (GCPConfig.MIN_STORAGE_GB <= storage_size <= GCPConfig.MAX_STORAGE_GB):
-            return SimulationResult(
-                monthly_cost=0.0,
-                details={},
-                success=False,
-                error_message=f"Stockage doit être entre {GCPConfig.MIN_STORAGE_GB} et {GCPConfig.MAX_STORAGE_GB} GB"
-            )
-        
-        # Exécution
+    def simulate(self, resources: List[Dict[str, Any]]) -> SimulationResult:
+        if not resources:
+            return SimulationResult(success=True, monthly_cost=0.0, details={})
+
         try:
             with tempfile.TemporaryDirectory(prefix=Config.TEMP_FILE_PREFIX) as tmpdirname:
-                tf_file_path = Path(tmpdirname) / "main.tf"
+                tf_path = Path(tmpdirname) / "main.tf"
+                with open(tf_path, "w") as f:
+                    f.write(self._generate_terraform_code(resources))
                 
-                tf_code = self.generate_terraform_code(instance_type, region, storage_size)
-                with open(tf_file_path, "w") as f:
-                    f.write(tf_code)
-                
-                logger.info(f"Environnement Terraform créé dans: {tmpdirname}")
-                
-                data = self.run_infracost(Path(tmpdirname))
-                monthly_cost = float(data.get('totalMonthlyCost', 0.0))
-                
-                # Check erreur silencieuse
-                if monthly_cost == 0.0 and data.get('projects'):
-                    metadata = data['projects'][0].get('metadata', {})
-                    if metadata.get('errors'):
-                        raise Exception(f"Infracost Error: {metadata['errors'][0].get('message')}")
+                cmd = ["infracost", "breakdown", "--path", str(tmpdirname), "--format", "json", "--log-level", "info"]
+                process = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout, env=os.environ)
 
-                return SimulationResult(monthly_cost=monthly_cost, details=data, success=True)
+                if process.returncode != 0:
+                    return SimulationResult(success=False, error_message=f"Erreur CLI: {process.stderr}")
+
+                try:
+                    data = json.loads(process.stdout)
+                    total_cost = float(data.get("totalMonthlyCost", 0.0))
+                    return SimulationResult(success=True, monthly_cost=total_cost, details=data)
+                except json.JSONDecodeError:
+                     return SimulationResult(success=False, error_message="Réponse Infracost invalide")
 
         except subprocess.TimeoutExpired:
-            return SimulationResult(monthly_cost=0.0, details={}, success=False, error_message=f"Timeout ({self.timeout}s)")
-        except subprocess.CalledProcessError as e:
-            return SimulationResult(monthly_cost=0.0, details={}, success=False, error_message=f"Erreur CLI: {e.stderr}")
+            return SimulationResult(success=False, error_message=f"Timeout Infracost ({self.timeout}s)")
         except Exception as e:
-            logger.exception("Erreur inattendue")
-            return SimulationResult(monthly_cost=0.0, details={}, success=False, error_message=str(e))
-
-
-def run_simulation(instance_type: str, region: str, storage_size: int) -> Tuple[Optional[float], Any]:
-    """
-    Fonction utilitaire pour compatibilité avec le code existant.
-    """
-    simulator = InfracostSimulator()
-    result = simulator.simulate(instance_type, region, storage_size)
-    
-    if result.success:
-        return result.monthly_cost, result.details
-    else:
-        return None, result.error_message
+            return SimulationResult(success=False, error_message=str(e))
