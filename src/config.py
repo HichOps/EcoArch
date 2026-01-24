@@ -36,6 +36,14 @@ class GCPConfig:
         "db-custom-2-7680", "db-custom-4-15360"
     ]
     DB_VERSIONS = ["POSTGRES_13", "POSTGRES_14", "POSTGRES_15"]
+
+    # STORAGE (Google Cloud Storage) - NOUVEAU !
+    STORAGE_CLASSES = [
+        "STANDARD",
+        "NEARLINE",
+        "COLDLINE",
+        "ARCHIVE"
+    ]
     
     MIN_STORAGE_GB = 10
     MAX_STORAGE_GB = 64000

@@ -13,11 +13,13 @@ try:
     from src.config import GCPConfig, Config
     from src.simulation import InfracostSimulator
 except ImportError:
+    # Fallback pour éviter les erreurs d'IDE si le bridge échoue
     class GCPConfig:
         REGIONS = []
         INSTANCE_TYPES = []
         DB_TIERS = [] 
         DB_VERSIONS = []
+        STORAGE_CLASSES = []
     class Config:
         DEFAULT_BUDGET_LIMIT = 50.0
         SUPABASE_URL = ""
@@ -26,16 +28,18 @@ except ImportError:
 
 class State(rx.State):
     # --- UI STATE ---
-    # Type de service sélectionné : "compute" ou "sql"
     selected_service: str = "compute"
     
     # Options Compute
     selected_machine: str = "e2-medium"
     selected_storage: int = 50
     
-    # Options SQL (Nouveau)
+    # Options SQL
     selected_db_tier: str = "db-f1-micro"
     selected_db_version: str = "POSTGRES_14"
+
+    # Options Storage
+    selected_storage_class: str = "STANDARD"
 
     # --- PANIER & RESULTATS ---
     resource_list: List[Dict[str, Any]] = []
@@ -45,10 +49,19 @@ class State(rx.State):
     error_msg: str = ""
     history: List[Dict] = []
 
-    # --- CONSTANTES POUR SELECTS ---
+    # --- CONSTANTES & COULEURS NEON ---
     instance_types: List[str] = GCPConfig.INSTANCE_TYPES
     db_tiers: List[str] = GCPConfig.DB_TIERS
     db_versions: List[str] = GCPConfig.DB_VERSIONS
+    storage_classes: List[str] = GCPConfig.STORAGE_CLASSES
+
+    # Définition des couleurs Néon par service pour le graphique
+    NEON_COLORS = {
+        "Compute": "#00f3ff", # Neon Cyan/Blue
+        "SQL": "#bc13fe",     # Neon Purple
+        "Storage": "#ff9900", # Neon Orange
+        "Autre": "#ff00ff"    # Neon Pink (fallback)
+    }
 
     # --- SETTERS ---
     def set_service(self, value: str): self.selected_service = value
@@ -56,10 +69,12 @@ class State(rx.State):
     def set_storage(self, value: List[float]): self.selected_storage = int(value[0])
     def set_db_tier(self, value: str): self.selected_db_tier = value
     def set_db_version(self, value: str): self.selected_db_version = value
+    def set_storage_class(self, value: str): self.selected_storage_class = value
 
     # --- ACTIONS ---
     def add_resource(self):
         """Crée l'objet ressource selon le type choisi"""
+        res = {}
         if self.selected_service == "compute":
             res = {
                 "type": "compute",
@@ -74,9 +89,16 @@ class State(rx.State):
                 "db_version": self.selected_db_version,
                 "display_name": f"SQL - {self.selected_db_tier}"
             }
+        elif self.selected_service == "storage":
+             res = {
+                "type": "storage",
+                "storage_class": self.selected_storage_class,
+                "display_name": f"GCS - {self.selected_storage_class}"
+            }
         
-        self.resource_list.append(res)
-        return State.run_simulation
+        if res:
+            self.resource_list.append(res)
+            return State.run_simulation
 
     def remove_resource(self, index: int):
         if 0 <= index < len(self.resource_list):
@@ -125,7 +147,6 @@ class State(rx.State):
     
     @rx.var
     def budget_icon(self) -> str:
-        # CORRECTION ICONE ICI
         return "check" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "triangle-alert"
 
     @rx.var
@@ -134,6 +155,7 @@ class State(rx.State):
 
     @rx.var
     def chart_data(self) -> List[Dict]:
+        """Prépare les données pour le camembert, INCLUANT LA COULEUR"""
         if not self.details: return []
         data = []
         try:
@@ -141,8 +163,18 @@ class State(rx.State):
                 for res in project.get('breakdown', {}).get('resources', []):
                     val = float(res.get('monthlyCost', 0))
                     if val > 0:
-                        name = "SQL" if "sql" in res['name'] else ("VM" if "instance" in res['name'] else "Disk")
-                        data.append({"name": name, "value": val})
+                        # Détermination du nom simplifié
+                        name = "Autre"
+                        if "sql" in res['name']: name = "SQL"
+                        elif "instance" in res['name']: name = "Compute"
+                        elif "storage" in res['name']: name = "Storage"
+                        
+                        # --- AJOUT MAJEUR : Sélection de la couleur ---
+                        # On récupère la couleur dans notre dictionnaire NEON_COLORS
+                        color = self.NEON_COLORS.get(name, self.NEON_COLORS["Autre"])
+
+                        # On ajoute la clé "fill" directement dans les données
+                        data.append({"name": name, "value": val, "fill": color})
         except: pass
         return data
 

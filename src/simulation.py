@@ -72,6 +72,21 @@ class InfracostSimulator:
                   deletion_protection = false
                 }}
                 """
+
+            # --- CAS 3 : CLOUD STORAGE (NOUVEAU) ---
+            elif r_type == "storage":
+                storage_class = res.get("storage_class", "STANDARD")
+                # On convertit le nom pour qu'il soit valide (minuscules, pas d'underscore)
+                safe_name = name.replace("_", "-").lower()
+                
+                tf_code += f"""
+                resource "google_storage_bucket" "{name}" {{
+                  name          = "{safe_name}"
+                  location      = "{Config.DEFAULT_REGION}"
+                  storage_class = "{storage_class}"
+                  force_destroy = true
+                }}
+                """
             
         return tf_code
     
