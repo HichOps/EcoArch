@@ -1,0 +1,48 @@
+services:
+  ecoarch:
+    build: .
+    container_name: ecoarch_v9_container
+    # On redémarre s'il plante, sauf si on l'arrête manuellement
+    restart: unless-stopped
+    ports:
+      - "3000:3000" # Frontend
+      - "8000:8000" # Backend (WebSocket/API)
+    env_file:
+      - .env
+    environment:
+      # URL interne pour que le backend parle à Redis (utilise le nom du service 'redis')
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      redis:
+        # On attend VRAIMENT que Redis soit prêt avant de lancer l'app
+        condition: service_healthy
+    # Connecte le service au réseau défini en bas
+    networks:
+      - ecoarch_net
+
+  redis:
+    image: redis:alpine
+    container_name: ecoarch_redis
+    restart: always
+    # Commande pour activer la persistance sur disque (AOF)
+    command: redis-server --appendonly yes
+    # Volume pour ne pas perdre les sessions au redémarrage
+    volumes:
+      - redis_data:/data
+    # Vérification de santé pour le depends_on
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - ecoarch_net
+
+# Définition des volumes persistants
+volumes:
+  redis_data:
+
+# Définition d'un réseau dédié (Bonne pratique pour isoler les conteneurs)
+networks:
+  ecoarch_net:
+    driver: bridge

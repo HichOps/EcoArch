@@ -13,9 +13,7 @@ try:
     from src.config import GCPConfig, Config
     from src.simulation import InfracostSimulator
 except ImportError:
-    # Fallback pour éviter les erreurs d'IDE si le bridge échoue
     class GCPConfig:
-        REGIONS = []
         INSTANCE_TYPES = []
         DB_TIERS = [] 
         DB_VERSIONS = []
@@ -29,16 +27,10 @@ except ImportError:
 class State(rx.State):
     # --- UI STATE ---
     selected_service: str = "compute"
-    
-    # Options Compute
     selected_machine: str = "e2-medium"
     selected_storage: int = 50
-    
-    # Options SQL
     selected_db_tier: str = "db-f1-micro"
     selected_db_version: str = "POSTGRES_14"
-
-    # Options Storage
     selected_storage_class: str = "STANDARD"
 
     # --- PANIER & RESULTATS ---
@@ -49,18 +41,18 @@ class State(rx.State):
     error_msg: str = ""
     history: List[Dict] = []
 
-    # --- CONSTANTES & COULEURS NEON ---
+    # --- CONSTANTES ---
     instance_types: List[str] = GCPConfig.INSTANCE_TYPES
     db_tiers: List[str] = GCPConfig.DB_TIERS
     db_versions: List[str] = GCPConfig.DB_VERSIONS
     storage_classes: List[str] = GCPConfig.STORAGE_CLASSES
 
-    # Définition des couleurs Néon par service pour le graphique
+    # Couleur pour le graphique (Logique Backend)
     NEON_COLORS = {
-        "Compute": "#00f3ff", # Neon Cyan/Blue
-        "SQL": "#bc13fe",     # Neon Purple
-        "Storage": "#ff9900", # Neon Orange
-        "Autre": "#ff00ff"    # Neon Pink (fallback)
+        "Compute": "#00f3ff", # Cyan
+        "SQL": "#bc13fe",     # Purple
+        "Storage": "#ff9900", # Orange
+        "Autre": "#ff00ff"
     }
 
     # --- SETTERS ---
@@ -73,7 +65,6 @@ class State(rx.State):
 
     # --- ACTIONS ---
     def add_resource(self):
-        """Crée l'objet ressource selon le type choisi"""
         res = {}
         if self.selected_service == "compute":
             res = {
@@ -110,7 +101,6 @@ class State(rx.State):
         self.error_msg = ""
         yield
         try:
-            # Si panier vide, on ne simule rien
             if not self.resource_list:
                 self.cost = 0.0
                 self.details = {}
@@ -140,44 +130,7 @@ class State(rx.State):
             self.history = data
         except Exception: pass
 
-    # --- COMPUTED UI ---
-    @rx.var
-    def budget_status_color(self) -> str:
-        return "green" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "red"
-    
-    @rx.var
-    def budget_icon(self) -> str:
-        return "check" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "triangle-alert"
-
-    @rx.var
-    def budget_label(self) -> str:
-        return "Budget OK" if self.cost <= Config.DEFAULT_BUDGET_LIMIT else "Budget Dépassé"
-
-    @rx.var
-    def chart_data(self) -> List[Dict]:
-        """Prépare les données pour le camembert, INCLUANT LA COULEUR"""
-        if not self.details: return []
-        data = []
-        try:
-            for project in self.details.get('projects', []):
-                for res in project.get('breakdown', {}).get('resources', []):
-                    val = float(res.get('monthlyCost', 0))
-                    if val > 0:
-                        # Détermination du nom simplifié
-                        name = "Autre"
-                        if "sql" in res['name']: name = "SQL"
-                        elif "instance" in res['name']: name = "Compute"
-                        elif "storage" in res['name']: name = "Storage"
-                        
-                        # --- AJOUT MAJEUR : Sélection de la couleur ---
-                        # On récupère la couleur dans notre dictionnaire NEON_COLORS
-                        color = self.NEON_COLORS.get(name, self.NEON_COLORS["Autre"])
-
-                        # On ajoute la clé "fill" directement dans les données
-                        data.append({"name": name, "value": val, "fill": color})
-        except: pass
-        return data
-
+    # --- COMPUTED VARS ---
     @rx.var
     def last_run_cost(self) -> str:
         return f"{self.history[0]['total_monthly_cost']} $" if self.history else "0.00 $"
@@ -187,3 +140,22 @@ class State(rx.State):
     @rx.var
     def last_run_color(self) -> str:
         return "grass" if self.history and self.history[0].get('status') == 'PASSED' else "tomato"
+
+    @rx.var
+    def chart_data(self) -> List[Dict]:
+        if not self.details: return []
+        data = []
+        try:
+            for project in self.details.get('projects', []):
+                for res in project.get('breakdown', {}).get('resources', []):
+                    val = float(res.get('monthlyCost', 0))
+                    if val > 0:
+                        name = "Autre"
+                        if "sql" in res['name']: name = "SQL"
+                        elif "instance" in res['name']: name = "Compute"
+                        elif "storage" in res['name']: name = "Storage"
+                        
+                        color = self.NEON_COLORS.get(name, self.NEON_COLORS["Autre"])
+                        data.append({"name": name, "value": val, "fill": color})
+        except: pass
+        return data

@@ -1,0 +1,58 @@
+# --- Python ---
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+venv
+.venv
+env
+pip-log.txt
+pip-delete-this-directory.txt
+
+# --- Node / Reflex Frontend ---
+node_modules
+npm-debug.log
+yarn-error.log
+.web
+.reflex
+# Si vous avez un dossier de build frontend spécifique autre que .web
+dist
+build
+
+# --- Git & Versionning ---
+.git
+.gitignore
+.gitattributes
+
+# --- Environnement & Sécurité (TRÈS IMPORTANT) ---
+.env
+.env.local
+.env.*
+# Clés SSH ou certificats locaux éventuels
+*.pem
+*.key
+
+# --- IDE & Éditeurs (Inutile dans le conteneur) ---
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+
+# --- Docker ---
+# On ne veut pas copier le Dockerfile lui-même DANS l'image (redondant)
+Dockerfile
+docker-compose.yml
+docker-compose.*.yml
+.dockerignore
+
+# --- Tests & Qualité de code ---
+# Inutile de charger les rapports de tests ou de couverture en prod
+.pytest_cache
+.coverage
+htmlcov
+.mypy_cache
+
+# --- Infracost (Spécifique à votre projet) ---
+# Infracost peut générer des logs ou des caches locaux
+.infracost

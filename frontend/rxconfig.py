@@ -1,8 +1,12 @@
 import reflex as rx
+import os
+
+api_url = os.getenv("API_URL", "http://localhost:8000")
 
 config = rx.Config(
     app_name="frontend",
-    # Windows redirigera localhost:8000 vers votre WSL
-    api_url="http://localhost:8000",
+    api_url=api_url,
     telemetry_enabled=False,
+    # Ajoutez cette ligne pour faire taire le warning dans les logs Docker
+    disable_plugins=["reflex.plugins.sitemap.SitemapPlugin"],
 )
