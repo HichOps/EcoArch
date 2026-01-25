@@ -1,185 +1,131 @@
-# 🌿 EcoArch Platform: Cloud Cost Intelligence
+# 🌿 EcoArch Platform: FinOps MVP
 
-> **Shift-Left FinOps** : Estimez, contrôlez et optimisez les coûts Cloud avant même le déploiement.
+> **Shift-Left FinOps** : Estimez, déployez, tracez et détruisez votre infrastructure Cloud avec une gouvernance totale.
 
-**EcoArch** est une plateforme FinOps moderne qui combine un pipeline CI/CD intelligent (pour bloquer les dépassements budgétaires) et une interface de contrôle "Control Plane" temps réel pour simuler les coûts d'infrastructure.
+**EcoArch** est une plateforme FinOps complète qui permet aux équipes de gérer le cycle de vie de leurs ressources Cloud (GCP) avec une visibilité financière temps réel. Elle intègre une isolation multi-utilisateurs et une traçabilité d'audit immuable.
 
 ![Status](https://img.shields.io/badge/Status-Production-green)
-![Tech](https://img.shields.io/badge/Frontend-Reflex_(React)-5B21B6)
-![Backend](https://img.shields.io/badge/Logic-Python_3.12-blue)
-![Architecture](https://img.shields.io/badge/Architecture-Clean_Modular-orange)
+![Tech](https://img.shields.io/badge/Stack-Docker_%7C_Reflex_%7C_Python-blue)
+![Infra](https://img.shields.io/badge/IaC-Terraform_%7C_Infracost-purple)
+![License](https://img.shields.io/badge/License-MIT-gray)
 
 ---
 
 ## 📑 Sommaire
 
-1. [🏗️ Architecture du Système](#architecture-du-système)
-2. [🚀 Control Plane (Frontend Reflex)](#-control-plane-frontend-reflex)
-3. [🔄 Pipeline FinOps (CI/CD)](#-pipeline-finops-cicd)
-4. [🛠️ Installation & Démarrage](#️-installation--démarrage)
-5. [🧪 Tests & Qualité](#-tests--qualité)
+1. [✨ Fonctionnalités Clés](#-fonctionnalités-clés)
+2. [🏗️ Architecture](#️-architecture)
+3. [🚀 Installation (Docker)](#-installation-docker)
+4. [🛠️ Guide Utilisateur](#️-guide-utilisateur)
+5. [🛡️ Sécurité & Traçabilité](#️-sécurité--traçabilité)
 
 ---
 
-## 🏗️ Architecture du Système
+## ✨ Fonctionnalités Clés
 
-Le projet suit une **Clean Architecture** stricte, séparant la logique métier (Domain) de l'interface utilisateur (Presentation).
+* **💰 Estimation Temps Réel** : Calcul instantané du coût mensuel via Infracost avant tout déploiement.
+* **🚧 Gouvernance Budgétaire** : Blocage automatique des déploiements si le budget (>50$) est dépassé.
+* **👤 Multi-Tenant & Isolation** : Chaque session génère un ID unique. Les infrastructures d'Alice n'écrasent jamais celles de Bob.
+* **🔄 Cycle de Vie Complet** : Création (Deploy) et Suppression (Destroy) des ressources directement depuis l'interface.
+* **📜 Audit Log Immuable** : Traçabilité complète dans Supabase (Qui a déployé quoi, quand et pour combien ?).
+* **⚡ Streaming de Logs** : Terminal WebSocket affichant les actions Terraform en direct.
+
+---
+
+## 🏗️ Architecture
+
+Le projet repose sur une architecture conteneurisée orchestrée par Docker Compose.
 
 ```mermaid
 graph TD
-    subgraph "Frontend Layer (Reflex)"
-        UI[🖥️ Interface Web] --> State[🧠 State Manager]
-        State --> API[⚡ FastAPI Backend]
+    User([👤 Utilisateur]) -->|HTTP| Reflex[🖥️ Frontend Reflex - Port 3000]
+    
+    subgraph DockerContainer[Docker Container - EcoArch]
+        Reflex -->|State| Backend[🧠 Python Logic]
+        Backend -->|CLI| Infracost[Calculateur Coûts]
+        Backend -->|CLI| Terraform[Terraform Engine]
     end
-
-    subgraph "Core Domain (src/)"
-        API --> Sim[🧮 Moteur Simulation]
-        API --> Config[⚙️ Configuration]
-        Sim --> Infracost[💰 Infracost CLI]
+    
+    subgraph CloudData[Cloud et Data]
+        Terraform -->|Deploy/Destroy| GCP[☁️ Google Cloud Platform]
+        Terraform -->|State File| GCS[🗄️ GCS Bucket - State Isolation]
+        Backend -->|Logs| Supabase[(🗃️ Supabase Audit DB)]
     end
-
-    subgraph "Data Layer"
-        State --> Supabase[(🗄️ Supabase DB)]
-    end
-
-    User([👤 Utilisateur]) --> UI
-
-```
-
-### Structure des Dossiers
-
-```text
-EcoArch/
-├── src/                  # 🧠 CORE DOMAIN (Logique Métier)
-│   ├── simulation.py     # Moteur de simulation (Infracost Wrapper)
-│   ├── config.py         # Configuration & Variables d'env
-│   └── budget_gate.py    # Script de gouvernance CI/CD
-├── frontend/             # ✨ PRESENTATION LAYER (Reflex UI)
-│   ├── rxconfig.py       # Configuration du projet Reflex
-│   ├── assets/           # Ressources statiques (Images, CSS)
-│   └── frontend/         # Code source de l'application
-│       ├── state.py      # State Management (Le Cerveau)
-│       ├── frontend.py   # Point d'entrée UI & Routing
-│       └── components/   # Composants réutilisables (Glassmorphism)
-│           └── cards.py  # Cartes KPI & Graphiques
-├── infra/                # 🏗️ INFRASTRUCTURE (Terraform)
-│   ├── main.tf
-│   └── variables.tf
-├── tests/                # 🧪 TESTS (Pytest)
-├── .env                  # 🔐 Secrets (API Keys)
-└── requirements.txt      # 📦 Dépendances Python
-
 ```
 
 ---
 
-## 🚀 Control Plane (Frontend Reflex)
+## 🚀 Installation (Docker)
 
-L'interface utilisateur a été entièrement réécrite avec **Reflex** (Framework Python vers React) pour offrir une expérience "App Native".
-
-### Fonctionnalités
-
-* **Simulateur Temps Réel** : Estimation instantanée des coûts (Compute + Storage) via Infracost.
-* **Design System** : Interface moderne (Glassmorphism, Animations, Mode Clair).
-* **Gouvernance Dashboard** : Visualisation de l'historique des déploiements (connecté à Supabase).
-* **Feedback Immédiat** : Indicateurs visuels de dépassement budgétaire.
-
----
-
-## 🔄 Pipeline FinOps (CI/CD)
-
-Le workflow CI/CD (GitLab) reste actif pour protéger la branche `main`.
-
-1. **Planification** : Terraform génère le plan d'infrastructure.
-2. **Analyse** : Infracost calcule le coût mensuel estimé.
-3. **Vérification** : Le script `src/budget_gate.py` compare le coût au budget (ex: 50$).
-* ✅ **< Budget** : Merge autorisé.
-* ❌ **> Budget** : Pipeline échoué, Merge bloqué.
-
-
-
----
-
-## 🛠️ Installation & Démarrage
+C'est la méthode recommandée. Plus besoin d'installer Python ou Terraform localement.
 
 ### Prérequis
 
-* Python 3.11+
-* Clé API Infracost (`INFRACOST_API_KEY`)
-* *(Linux/WSL)* Paquet `unzip` installé (`sudo apt install unzip`).
+* Docker & Docker Compose installés.
+* Un compte Google Cloud avec une clé de service JSON (`gcp-key.json`).
+* Une clé API Infracost et un projet Supabase.
 
-### 1. Installation
+### 1. Clonage & Configuration
 
 ```bash
-git clone [https://gitlab.com/votre-repo/EcoArch.git](https://gitlab.com/votre-repo/EcoArch.git)
+git clone https://gitlab.com/votre-repo/EcoArch.git
 cd EcoArch
 
-# Environnement virtuel
-python3 -m venv venv
-source venv/bin/activate
-
-# Dépendances
-pip install -r requirements.txt
-
+# Placez votre clé GCP à la racine
+cp /chemin/vers/votre/gcp-key.json .
 ```
 
-### 2. Configuration (.env)
+### 2. Variables d'environnement
 
 Créez un fichier `.env` à la racine :
 
 ```env
 INFRACOST_API_KEY="ico-xxxx..."
-SUPABASE_URL="[https://xxx.supabase.co](https://xxx.supabase.co)"
+SUPABASE_URL="https://xxx.supabase.co"
 SUPABASE_SERVICE_KEY="eyJxh..."
-GCP_PROJECT_ID="mon-projet-gcp"
-
+GCP_PROJECT_ID="votre-projet-id"
+TERRAFORM_STATE_BUCKET="votre-bucket-tfstate"
 ```
 
-### 3. Lancer l'Application
-
-L'application Reflex se lance depuis le dossier `frontend`.
-
-**Pour Linux / macOS :**
+### 3. Démarrage
 
 ```bash
-cd frontend
-reflex run
-
+docker-compose up --build
 ```
 
-**Pour WSL (Windows Subsystem for Linux) :**
-⚠️ Commande spécifique pour exposer le réseau vers Windows :
-
-```bash
-cd frontend
-HOSTNAME=0.0.0.0 reflex run --backend-host 0.0.0.0
-
-```
-
-Accédez ensuite à : **[http://localhost:3000](https://www.google.com/search?q=http://localhost:3000)**
+Accédez à l'application : **http://localhost:3000**
 
 ---
 
-## 🧪 Tests & Qualité
+## 🛠️ Guide Utilisateur
 
-La logique métier (`src/`) est couverte par des tests unitaires indépendants de l'interface.
+### 1. Simulation
 
-```bash
-# Lancer tous les tests
-pytest
+Choisissez vos ressources (VM, SQL, Storage). Le prix se met à jour. Si le budget est dépassé, le bouton de déploiement se verrouille.
 
-# Voir la couverture
-pytest --cov=src tests/
+### 2. Déploiement (Deploy)
 
-```
+Cliquez sur **DÉPLOYER**.
 
-### Stack Technique
+* L'app génère un ID de session unique.
+* Terraform provisionne les ressources sur GCP.
+* Une entrée "PENDING" puis "SUCCESS" est créée dans Supabase.
 
-| Composant | Technologie | Rôle |
-| --- | --- | --- |
-| **Frontend** | Reflex | UI Réactive (Python -> React) |
-| **Backend** | FastAPI | Serveur API (intégré à Reflex) |
-| **Pricing** | Infracost | Moteur de coûts Cloud |
-| **IaC** | Terraform | Infrastructure Google Cloud |
-| **DB** | Supabase | Stockage historique & Logs |
+### 3. Récupération & Destruction (Destroy)
+
+Pour supprimer une infrastructure :
+
+* Si vous êtes dans la même session : Cliquez sur **DÉTRUIRE L'INFRA**.
+* Si vous revenez plus tard : Collez l'**ID INFRA** (ex: `b4810762`) dans le champ dédié et cliquez sur Détruire.
+
+---
+
+## 🛡️ Sécurité & Traçabilité
+
+Le fichier `state.py` gère l'identité de l'utilisateur.
+Chaque action Terraform est isolée dans un préfixe GCS spécifique : `terraform/state/{session_id}/default.tfstate`.
+
+* **Aucun conflit** de fichier state entre utilisateurs.
+* **Nettoyage ciblé** : La destruction ne touche que les ressources de l'ID spécifié.
+
 

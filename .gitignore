@@ -26,3 +26,5 @@ venv/
 frontend/__pycache__
 frontend/frontend/__pycache__
 frontend/.web
+gcp-key.json
+gcp-key.json*

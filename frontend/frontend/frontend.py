@@ -8,6 +8,8 @@ from .components.form import configuration_form
 from .components.resources import resource_list_display
 from .components.pricing import pricing_block
 from .components.stats import governance_dashboard
+# Import du nouveau composant Logs
+from .components.logs import deploy_console
 
 def index():
     return rx.box(
@@ -28,31 +30,39 @@ def index():
                 
                 # --- ONGLET BUILDER ---
                 rx.tabs.content(
-                    rx.grid(
-                        # Colonne Gauche : Formulaire
-                        configuration_form(),
+                    rx.vstack(  # Utilisation d'un vstack pour empiler Grille + Console
+                        rx.grid(
+                            # Colonne Gauche : Formulaire
+                            configuration_form(),
 
-                        # Colonne Droite : Panier + Prix
-                        rx.vstack(
-                            resource_list_display(),
-                            
-                            # Zone d'erreurs
-                            rx.cond(
-                                State.error_msg != "",
-                                rx.callout.root(
-                                    rx.callout.icon(rx.icon("triangle-alert")),
-                                    rx.callout.text(State.error_msg),
-                                    color_scheme="ruby", role="alert", width="100%"
-                                )
+                            # Colonne Droite : Panier + Prix
+                            rx.vstack(
+                                resource_list_display(),
+                                
+                                # Zone d'erreurs
+                                rx.cond(
+                                    State.error_msg != "",
+                                    rx.callout.root(
+                                        rx.callout.icon(rx.icon("triangle-alert")),
+                                        rx.callout.text(State.error_msg),
+                                        color_scheme="ruby", role="alert", width="100%"
+                                    )
+                                ),
+
+                                # Bloc Prix Néon
+                                pricing_block(),
+                                
+                                rx.cond(State.is_loading, rx.center(rx.spinner(size="3"), width="100%", padding="2rem")),
+                                width="100%", spacing="6"
                             ),
-
-                            # Bloc Prix Néon
-                            pricing_block(),
-                            
-                            rx.cond(State.is_loading, rx.center(rx.spinner(size="3"), width="100%", padding="2rem")),
-                            width="100%", spacing="6"
+                            columns="2", spacing="8", width="100%"
                         ),
-                        columns="2", spacing="8", width="100%"
+                        
+                        # --- CONSOLE DE DÉPLOIEMENT (NOUVEAU) ---
+                        deploy_console(),
+                        # ----------------------------------------
+                        
+                        width="100%", spacing="6"
                     ),
                     value="sim", padding_top="2rem",
                 ),

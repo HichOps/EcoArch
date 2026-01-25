@@ -12,6 +12,13 @@ services:
     environment:
       # URL interne pour que le backend parle à Redis (utilise le nom du service 'redis')
       - REDIS_URL=redis://redis:6379
+      # Variable standard Google pour l'auto-authentification
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json 
+      - GCP_PROJECT_ID=ecoarch-mvp-1768828854
+    volumes:
+      # On monte le fichier de clé dans le conteneur en lecture seule (:ro)
+      - ./gcp-key.json:/app/gcp-key.json:ro
+      - .:/app
     depends_on:
       redis:
         # On attend VRAIMENT que Redis soit prêt avant de lancer l'app
