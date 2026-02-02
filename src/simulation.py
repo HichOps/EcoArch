@@ -107,7 +107,21 @@ class InfracostSimulator:
                   force_destroy = true
                 }}
                 """
-            
+
+            # --- NOUVEAU BLOC : LOAD BALANCER ---
+            elif r_type == "load_balancer":
+                # On simule un Global Forwarding Rule (HTTP LB classique)
+                tf_code += f"""
+                resource "google_compute_global_forwarding_rule" "{name}" {{
+                  name       = "{name}-{deployment_id}"
+                  target     = "default-target-http-proxy" # Simplifié pour le coût
+                  port_range = "80"
+                  labels = {{
+                    deployment_id = "{deployment_id}"
+                  }}
+                }}
+                """
+
         return tf_code
     
     def simulate(self, resources: List[Dict[str, Any]]) -> SimulationResult:

@@ -1,12 +1,12 @@
-# 🌿 EcoArch Platform: FinOps MVP
+# 🌿 EcoArch Platform: Intelligent FinOps
 
-> **Shift-Left FinOps** : Estimez, déployez, tracez et détruisez votre infrastructure Cloud avec une gouvernance totale.
+> **From Zero to Hero** : L'assistant d'infrastructure Cloud qui estime, déploie et audite vos ressources GCP.
 
-**EcoArch** est une plateforme FinOps complète qui permet aux équipes de gérer le cycle de vie de leurs ressources Cloud (GCP) avec une visibilité financière temps réel. Elle intègre une isolation multi-utilisateurs et une traçabilité d'audit immuable.
+**EcoArch** est une plateforme FinOps "Day 0 & Day 2" qui combine un architecte virtuel (Wizard) pour la conception et un contrôle total pour le déploiement. Elle intègre la gestion de la Haute Disponibilité (HA), une isolation multi-utilisateurs et une traçabilité d'audit immuable.
 
-![Status](https://img.shields.io/badge/Status-Production-green)
+![Status](https://img.shields.io/badge/Status-Production_V10-green)
 ![Tech](https://img.shields.io/badge/Stack-Docker_%7C_Reflex_%7C_Python-blue)
-![Infra](https://img.shields.io/badge/IaC-Terraform_%7C_Infracost-purple)
+![Module](https://img.shields.io/badge/Engine-Terraform_%7C_Infracost-purple)
 ![License](https://img.shields.io/badge/License-MIT-gray)
 
 ---
@@ -14,83 +14,92 @@
 ## 📑 Sommaire
 
 1. [✨ Fonctionnalités Clés](#-fonctionnalités-clés)
-2. [🏗️ Architecture](#️-architecture)
-3. [🚀 Installation (Docker)](#-installation-docker)
-4. [🛠️ Guide Utilisateur](#️-guide-utilisateur)
-5. [🛡️ Sécurité & Traçabilité](#️-sécurité--traçabilité)
+2. [🤖 Architecte Virtuel (Wizard)](#-architecte-virtuel-wizard)
+3. [🏗️ Architecture Technique](#️-architecture-technique)
+4. [🚀 Installation (Docker)](#-installation-docker)
+5. [🛠️ Guide Utilisateur](#️-guide-utilisateur)
+6. [🛡️ Gouvernance & Audit](#️-gouvernance--audit)
 
 ---
 
 ## ✨ Fonctionnalités Clés
 
+* **🧠 Mode Assistant (IA)** : Un questionnaire intelligent traduit vos besoins métier (Trafic, Criticité) en architecture technique optimisée.
+* **🛡️ Haute Disponibilité (HA)** : Génération automatique de clusters (Multi-VMs) et de Load Balancers si la criticité l'exige.
 * **💰 Estimation Temps Réel** : Calcul instantané du coût mensuel via Infracost avant tout déploiement.
-* **🚧 Gouvernance Budgétaire** : Blocage automatique des déploiements si le budget (>50$) est dépassé.
-* **👤 Multi-Tenant & Isolation** : Chaque session génère un ID unique. Les infrastructures d'Alice n'écrasent jamais celles de Bob.
-* **🔄 Cycle de Vie Complet** : Création (Deploy) et Suppression (Destroy) des ressources directement depuis l'interface.
-* **📜 Audit Log Immuable** : Traçabilité complète dans Supabase (Qui a déployé quoi, quand et pour combien ?).
-* **⚡ Streaming de Logs** : Terminal WebSocket affichant les actions Terraform en direct.
+* **⚡ Auto-Déploiement** : Option pour provisionner l'infrastructure automatiquement si le budget (<50$) est respecté.
+* **👤 Multi-Tenant** : Barre d'identité persistante. Chaque session possède son propre State Terraform isolé (UUID).
+* **📜 Audit Log Visuel** : Tableau de bord intégré (Data Grid) listant toutes les actions sans accès direct à la BDD.
 
 ---
 
-## 🏗️ Architecture
+## 🤖 Architecte Virtuel (Wizard)
 
-Le projet repose sur une architecture conteneurisée orchestrée par Docker Compose.
+EcoArch ne se contente pas d'exécuter, elle conseille. Le moteur de recommandation analyse vos réponses pour dimensionner l'infrastructure.
+
+| Besoin Métier | Traduction Technique EcoArch |
+| :--- | :--- |
+| **"Trafic Élevé"** | Upgrade CPU (`e2-highcpu`) + Disques SSD |
+| **"Données Critiques"** | Base de données HA + Stockage Multi-Régional |
+| **"Haute Dispo (SLA)"** | Cluster 2 VMs + Global Load Balancer (HTTP) |
+
+---
+
+## 🏗️ Architecture Technique
+
+Le projet suit une **Clean Architecture** stricte séparant l'interface (Reflex) de la logique (Python) et de l'infrastructure (Terraform).
 
 ```mermaid
 graph TD
-    User([👤 Utilisateur]) -->|HTTP| Reflex[🖥️ Frontend Reflex - Port 3000]
+    User([👤 Utilisateur]) -->|Top Bar Identity| UI[🖥️ Reflex Frontend]
+    UI -->|Switch Mode| Assistant[🤖 Wizard Mode]
+    UI -->|Manual| Expert[🛠️ Expert Mode]
     
-    subgraph DockerContainer[Docker Container - EcoArch]
-        Reflex -->|State| Backend[🧠 Python Logic]
-        Backend -->|CLI| Infracost[Calculateur Coûts]
-        Backend -->|CLI| Terraform[Terraform Engine]
+    subgraph "Core Logic"
+        Assistant -->|Answers| RecEngine[🧠 Recommendation Engine]
+        RecEngine -->|Optimized Stack| State[State Manager]
+        Expert -->|Selection| State
     end
     
-    subgraph CloudData[Cloud et Data]
-        Terraform -->|Deploy/Destroy| GCP[☁️ Google Cloud Platform]
-        Terraform -->|State File| GCS[🗄️ GCS Bucket - State Isolation]
-        Backend -->|Logs| Supabase[(🗃️ Supabase Audit DB)]
+    subgraph "Infrastructure Layer"
+        State -->|JSON| Infracost[💰 Infracost CLI]
+        State -->|HCL| Terraform[🏗️ Terraform Engine]
     end
+    
+    subgraph "Persistance & Logs"
+        Terraform -->|Provision| GCP[☁️ Google Cloud]
+        Terraform -->|State| GCS[🗄️ GCS Bucket]
+        State -->|Audit| Supabase[(🗃️ Audit DB)]
+    end
+
 ```
 
 ---
 
 ## 🚀 Installation (Docker)
 
-C'est la méthode recommandée. Plus besoin d'installer Python ou Terraform localement.
+La méthode recommandée pour un environnement isolé et reproductible.
 
 ### Prérequis
 
-* Docker & Docker Compose installés.
-* Un compte Google Cloud avec une clé de service JSON (`gcp-key.json`).
-* Une clé API Infracost et un projet Supabase.
+* Docker & Docker Compose.
+* Clé de service GCP (`gcp-key.json`) à la racine.
+* Fichier `.env` configuré avec vos clés API (Infracost, Supabase).
 
-### 1. Clonage & Configuration
+### Démarrage Rapide
 
 ```bash
-git clone https://gitlab.com/votre-repo/EcoArch.git
+# 1. Cloner le projet
+git clone [https://gitlab.com/votre-repo/EcoArch.git](https://gitlab.com/votre-repo/EcoArch.git)
 cd EcoArch
 
-# Placez votre clé GCP à la racine
-cp /chemin/vers/votre/gcp-key.json .
-```
+# 2. Configurer les secrets
+cp /path/to/gcp-key.json .
+# Assurez-vous que le fichier .env est présent
 
-### 2. Variables d'environnement
-
-Créez un fichier `.env` à la racine :
-
-```env
-INFRACOST_API_KEY="ico-xxxx..."
-SUPABASE_URL="https://xxx.supabase.co"
-SUPABASE_SERVICE_KEY="eyJxh..."
-GCP_PROJECT_ID="votre-projet-id"
-TERRAFORM_STATE_BUCKET="votre-bucket-tfstate"
-```
-
-### 3. Démarrage
-
-```bash
+# 3. Lancer la stack
 docker-compose up --build
+
 ```
 
 Accédez à l'application : **http://localhost:3000**
@@ -99,33 +108,37 @@ Accédez à l'application : **http://localhost:3000**
 
 ## 🛠️ Guide Utilisateur
 
-### 1. Simulation
+### 1. Identité & Session
 
-Choisissez vos ressources (VM, SQL, Storage). Le prix se met à jour. Si le budget est dépassé, le bouton de déploiement se verrouille.
+En haut de l'écran, utilisez la **Top Bar** pour sélectionner votre profil (ex: *Alice DevOps*) et voir votre ID de session unique.
 
-### 2. Déploiement (Deploy)
+### 2. Conception (Deux Modes)
+
+* **Mode Assistant** : Répondez aux 4 questions (Env, Trafic, Charge, Criticité). Cochez "Auto-déploiement" pour une expérience fluide.
+* **Mode Expert** : Ajustez manuellement chaque ressource (VM, SQL, Storage) dans le panneau de configuration.
+
+### 3. Déploiement
 
 Cliquez sur **DÉPLOYER**.
 
-* L'app génère un ID de session unique.
-* Terraform provisionne les ressources sur GCP.
-* Une entrée "PENDING" puis "SUCCESS" est créée dans Supabase.
+* Terraform initialise un backend isolé pour votre ID de session.
+* Les ressources sont créées sur GCP.
+* Le statut passe à "SUCCESS" dans les logs.
 
-### 3. Récupération & Destruction (Destroy)
+### 4. Destruction
 
-Pour supprimer une infrastructure :
-
-* Si vous êtes dans la même session : Cliquez sur **DÉTRUIRE L'INFRA**.
-* Si vous revenez plus tard : Collez l'**ID INFRA** (ex: `b4810762`) dans le champ dédié et cliquez sur Détruire.
+Pour éviter les coûts inutiles, cliquez sur **DÉTRUIRE L'INFRA** avant de quitter, ou saisissez votre ID de session plus tard pour nettoyer.
 
 ---
 
-## 🛡️ Sécurité & Traçabilité
+## 🛡️ Gouvernance & Audit
 
-Le fichier `state.py` gère l'identité de l'utilisateur.
-Chaque action Terraform est isolée dans un préfixe GCS spécifique : `terraform/state/{session_id}/default.tfstate`.
+L'onglet **"Gouvernance & Logs"** offre une vue temps réel sur l'activité de la plateforme :
 
-* **Aucun conflit** de fichier state entre utilisateurs.
-* **Nettoyage ciblé** : La destruction ne touche que les ressources de l'ID spécifié.
-
+* **Dashboard Graphique** : Suivi de l'évolution des coûts mensuels.
+* **Tableau d'Audit** : Une vue "Data Grid" connectée à Supabase affichant :
+* *Qui* a lancé l'action.
+* *Quoi* (Résumé des ressources, ex: "Cluster HA + LB").
+* *Combien* (Coût estimé).
+* *Quand* et le *Statut* (Succès/Erreur).
 
