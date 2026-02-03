@@ -1,36 +1,52 @@
-"""
-Tests unitaires pour le module de simulation.
-"""
-import pytest
+"""Tests unitaires pour le module de simulation."""
 import json
-from pathlib import Path
+from subprocess import TimeoutExpired
 from unittest.mock import Mock, patch, MagicMock
-import tempfile
 
-from src.simulation import InfracostSimulator, SimulationResult, run_simulation
-from src.config import Config, GCPConfig
+import pytest
+
+from src.simulation import InfracostSimulator, SimulationResult
+from src.config import Config
+
+
+class TestSimulationResult:
+    """Tests pour la dataclass SimulationResult."""
+    
+    def test_creation_success(self):
+        """Test de création d'un SimulationResult réussi."""
+        result = SimulationResult(
+            success=True,
+            monthly_cost=50.0,
+            details={"key": "value"},
+        )
+        
+        assert result.success is True
+        assert result.monthly_cost == 50.0
+        assert result.details == {"key": "value"}
+        assert result.error_message is None
+    
+    def test_creation_with_error(self):
+        """Test de création d'un SimulationResult avec erreur."""
+        result = SimulationResult(
+            success=False,
+            error_message="Test error",
+        )
+        
+        assert result.success is False
+        assert result.monthly_cost == 0.0
+        assert result.error_message == "Test error"
+    
+    def test_default_values(self):
+        """Test des valeurs par défaut."""
+        result = SimulationResult(success=True)
+        
+        assert result.monthly_cost == 0.0
+        assert result.details == {}
+        assert result.error_message is None
 
 
 class TestInfracostSimulator:
     """Tests pour la classe InfracostSimulator."""
-    
-    def test_generate_terraform_code(self):
-        """Test de génération du code Terraform."""
-        simulator = InfracostSimulator()
-        code = simulator.generate_terraform_code("e2-medium", "europe-west1", 20)
-        
-        assert "e2-medium" in code
-        assert "europe-west1" in code
-        assert "size  = 20" in code
-        assert Config.DEFAULT_IMAGE in code
-        assert simulator.project_id in code
-    
-    def test_init_with_custom_values(self):
-        """Test d'initialisation avec des valeurs personnalisées."""
-        simulator = InfracostSimulator(project_id="custom-project", timeout=60)
-        
-        assert simulator.project_id == "custom-project"
-        assert simulator.timeout == 60
     
     def test_init_with_defaults(self):
         """Test d'initialisation avec les valeurs par défaut."""
@@ -39,199 +55,161 @@ class TestInfracostSimulator:
         assert simulator.project_id == Config.GCP_PROJECT_ID
         assert simulator.timeout == Config.INFRACOST_TIMEOUT
     
-    @patch('src.simulation.subprocess.run')
-    def test_run_infracost_success(self, mock_run):
-        """Test d'exécution réussie d'Infracost."""
-        # Mock de la réponse
-        mock_result = Mock()
-        mock_result.stdout = json.dumps({"totalMonthlyCost": "25.50"})
-        mock_run.return_value = mock_result
+    def test_init_with_custom_values(self):
+        """Test d'initialisation avec des valeurs personnalisées."""
+        simulator = InfracostSimulator(project_id="custom-project", timeout=60)
         
-        simulator = InfracostSimulator()
-        tf_file = Path("/tmp/test.tf")
-        
-        result = simulator.run_infracost(tf_file)
-        
-        assert result["totalMonthlyCost"] == "25.50"
-        mock_run.assert_called_once()
-        
-        # Vérification des arguments
-        call_args = mock_run.call_args
-        assert call_args.kwargs['timeout'] == simulator.timeout
-        assert call_args.kwargs['check'] is True
+        assert simulator.project_id == "custom-project"
+        assert simulator.timeout == 60
     
-    @patch('src.simulation.subprocess.run')
-    @patch('src.simulation.tempfile.NamedTemporaryFile')
-    @patch('src.simulation.Path.exists')
-    @patch('src.simulation.Path.unlink')
-    def test_simulate_success(self, mock_unlink, mock_exists, mock_tempfile, mock_run):
-        """Test de simulation complète réussie."""
-        # Mock du fichier temporaire
-        mock_file = MagicMock()
-        mock_file.name = "/tmp/test_sim.tf"
-        mock_file.__enter__ = Mock(return_value=mock_file)
-        mock_file.__exit__ = Mock(return_value=False)
-        mock_tempfile.return_value = mock_file
+    def test_generate_terraform_code_compute(self):
+        """Test de génération du code Terraform pour Compute."""
+        simulator = InfracostSimulator()
+        resources = [{
+            "type": "compute",
+            "machine_type": "e2-medium",
+            "disk_size": 50,
+        }]
         
-        # Mock de la réponse Infracost
+        code = simulator._generate_terraform_code(resources, "test-deploy")
+        
+        assert "e2-medium" in code
+        assert "size  = 50" in code
+        assert "google_compute_instance" in code
+        assert "test-deploy" in code
+        assert Config.DEFAULT_IMAGE in code
+    
+    def test_generate_terraform_code_sql(self):
+        """Test de génération du code Terraform pour SQL."""
+        simulator = InfracostSimulator()
+        resources = [{
+            "type": "sql",
+            "db_tier": "db-f1-micro",
+            "db_version": "POSTGRES_14",
+        }]
+        
+        code = simulator._generate_terraform_code(resources, "test-deploy")
+        
+        assert "db-f1-micro" in code
+        assert "POSTGRES_14" in code
+        assert "google_sql_database_instance" in code
+    
+    def test_generate_terraform_code_storage(self):
+        """Test de génération du code Terraform pour Storage."""
+        simulator = InfracostSimulator()
+        resources = [{
+            "type": "storage",
+            "storage_class": "STANDARD",
+        }]
+        
+        code = simulator._generate_terraform_code(resources, "test-deploy")
+        
+        assert "STANDARD" in code
+        assert "google_storage_bucket" in code
+    
+    def test_generate_terraform_code_load_balancer(self):
+        """Test de génération du code Terraform pour Load Balancer."""
+        simulator = InfracostSimulator()
+        resources = [{
+            "type": "load_balancer",
+        }]
+        
+        code = simulator._generate_terraform_code(resources, "test-deploy")
+        
+        assert "google_compute_global_address" in code
+        assert "lb-ip-test-deploy" in code
+    
+    def test_simulate_empty_resources(self):
+        """Test de simulation avec liste vide."""
+        simulator = InfracostSimulator()
+        result = simulator.simulate([])
+        
+        assert result.success is True
+        assert result.monthly_cost == 0.0
+        assert result.details == {}
+    
+    @patch("src.simulation.subprocess.run")
+    @patch("src.simulation.tempfile.TemporaryDirectory")
+    def test_simulate_success(self, mock_tempdir, mock_run):
+        """Test de simulation réussie."""
+        mock_tempdir.return_value.__enter__ = Mock(return_value="/tmp/test")
+        mock_tempdir.return_value.__exit__ = Mock(return_value=False)
+        
         mock_result = Mock()
+        mock_result.returncode = 0
         mock_result.stdout = json.dumps({
             "totalMonthlyCost": "42.75",
-            "projects": []
+            "projects": [],
         })
         mock_run.return_value = mock_result
         
-        # Mock du nettoyage
-        mock_exists.return_value = True
-        
         simulator = InfracostSimulator()
-        result = simulator.simulate("e2-medium", "europe-west1", 20)
+        
+        with patch("pathlib.Path.write_text"):
+            result = simulator.simulate([{"type": "compute"}])
         
         assert result.success is True
         assert result.monthly_cost == 42.75
-        assert result.error_message is None
-        assert "totalMonthlyCost" in result.details
-        
-        # Vérification du nettoyage
-        mock_unlink.assert_called_once()
     
-    @patch('src.simulation.subprocess.run')
-    @patch('src.simulation.tempfile.NamedTemporaryFile')
-    def test_simulate_invalid_storage(self, mock_tempfile, mock_run):
-        """Test avec stockage invalide."""
+    @patch("src.simulation.subprocess.run")
+    @patch("src.simulation.tempfile.TemporaryDirectory")
+    def test_simulate_infracost_error(self, mock_tempdir, mock_run):
+        """Test de simulation avec erreur Infracost (non bloquante)."""
+        mock_tempdir.return_value.__enter__ = Mock(return_value="/tmp/test")
+        mock_tempdir.return_value.__exit__ = Mock(return_value=False)
+        
+        mock_result = Mock()
+        mock_result.returncode = 1
+        mock_result.stderr = "Infracost error"
+        mock_run.return_value = mock_result
+        
         simulator = InfracostSimulator()
         
-        # Stockage trop grand
-        result = simulator.simulate("e2-medium", "europe-west1", 5000)
+        with patch("pathlib.Path.write_text"):
+            result = simulator.simulate([{"type": "compute"}])
         
-        assert result.success is False
-        assert "Stockage doit être entre" in result.error_message
+        assert result.success is True
         assert result.monthly_cost == 0.0
-        
-        # Vérifier qu'aucun fichier temporaire n'a été créé
-        mock_tempfile.assert_not_called()
+        assert "Warning" in result.error_message
     
-    @patch('src.simulation.subprocess.run')
-    @patch('src.simulation.tempfile.NamedTemporaryFile')
-    @patch('src.simulation.Path.exists')
-    @patch('src.simulation.Path.unlink')
-    def test_simulate_timeout(self, mock_unlink, mock_exists, mock_tempfile, mock_run):
-        """Test de timeout lors de l'exécution."""
-        # Mock du fichier temporaire
-        mock_file = MagicMock()
-        mock_file.name = "/tmp/test_timeout.tf"
-        mock_file.__enter__ = Mock(return_value=mock_file)
-        mock_file.__exit__ = Mock(return_value=False)
-        mock_tempfile.return_value = mock_file
+    @patch("src.simulation.subprocess.run")
+    @patch("src.simulation.tempfile.TemporaryDirectory")
+    def test_simulate_timeout(self, mock_tempdir, mock_run):
+        """Test de timeout lors de la simulation."""
+        mock_tempdir.return_value.__enter__ = Mock(return_value="/tmp/test")
+        mock_tempdir.return_value.__exit__ = Mock(return_value=False)
         
-        # Simuler un timeout
-        from subprocess import TimeoutExpired
         mock_run.side_effect = TimeoutExpired(cmd="infracost", timeout=30)
         
-        mock_exists.return_value = True
-        
         simulator = InfracostSimulator()
-        result = simulator.simulate("e2-medium", "europe-west1", 20)
+        
+        with patch("pathlib.Path.write_text"):
+            result = simulator.simulate([{"type": "compute"}])
         
         assert result.success is False
         assert "Timeout" in result.error_message
-        assert result.monthly_cost == 0.0
-        
-        # Vérification du nettoyage même en cas d'erreur
-        mock_unlink.assert_called_once()
+
+
+class TestDeployDestroy:
+    """Tests pour les méthodes deploy et destroy."""
     
-    @patch('src.simulation.subprocess.run')
-    @patch('src.simulation.tempfile.NamedTemporaryFile')
-    @patch('src.simulation.Path.exists')
-    @patch('src.simulation.Path.unlink')
-    def test_simulate_json_error(self, mock_unlink, mock_exists, mock_tempfile, mock_run):
-        """Test avec réponse JSON invalide."""
-        # Mock du fichier temporaire
-        mock_file = MagicMock()
-        mock_file.name = "/tmp/test_json.tf"
-        mock_file.__enter__ = Mock(return_value=mock_file)
-        mock_file.__exit__ = Mock(return_value=False)
-        mock_tempfile.return_value = mock_file
+    @patch("src.simulation.subprocess.Popen")
+    @patch("src.simulation.tempfile.TemporaryDirectory")
+    def test_deploy_yields_logs(self, mock_tempdir, mock_popen):
+        """Test que deploy yield des logs."""
+        mock_tempdir.return_value.__enter__ = Mock(return_value="/tmp/test")
+        mock_tempdir.return_value.__exit__ = Mock(return_value=False)
         
-        # Réponse non-JSON
-        mock_result = Mock()
-        mock_result.stdout = "Not a JSON response"
-        mock_run.return_value = mock_result
-        
-        mock_exists.return_value = True
+        mock_process = MagicMock()
+        mock_process.stdout = iter(["init output", "apply output"])
+        mock_process.wait.return_value = None
+        mock_process.returncode = 0
+        mock_popen.return_value = mock_process
         
         simulator = InfracostSimulator()
-        result = simulator.simulate("e2-medium", "europe-west1", 20)
         
-        assert result.success is False
-        assert "Réponse Infracost invalide" in result.error_message
+        with patch("pathlib.Path.write_text"):
+            logs = list(simulator.deploy([{"type": "compute"}], "test-id"))
         
-        # Nettoyage doit quand même avoir lieu
-        mock_unlink.assert_called_once()
-
-
-class TestRunSimulation:
-    """Tests pour la fonction utilitaire run_simulation."""
-    
-    @patch('src.simulation.InfracostSimulator')
-    def test_run_simulation_success(self, mock_simulator_class):
-        """Test de la fonction wrapper avec succès."""
-        # Mock du simulateur
-        mock_simulator = Mock()
-        mock_simulator.simulate.return_value = SimulationResult(
-            monthly_cost=35.20,
-            details={"test": "data"},
-            success=True
-        )
-        mock_simulator_class.return_value = mock_simulator
-        
-        cost, details = run_simulation("e2-medium", "europe-west1", 20)
-        
-        assert cost == 35.20
-        assert details == {"test": "data"}
-    
-    @patch('src.simulation.InfracostSimulator')
-    def test_run_simulation_failure(self, mock_simulator_class):
-        """Test de la fonction wrapper avec échec."""
-        # Mock du simulateur
-        mock_simulator = Mock()
-        mock_simulator.simulate.return_value = SimulationResult(
-            monthly_cost=0.0,
-            details={},
-            success=False,
-            error_message="Test error"
-        )
-        mock_simulator_class.return_value = mock_simulator
-        
-        cost, error = run_simulation("e2-medium", "europe-west1", 20)
-        
-        assert cost is None
-        assert error == "Test error"
-
-
-class TestSimulationResult:
-    """Tests pour la dataclass SimulationResult."""
-    
-    def test_simulation_result_creation(self):
-        """Test de création d'un SimulationResult."""
-        result = SimulationResult(
-            monthly_cost=50.0,
-            details={"key": "value"}
-        )
-        
-        assert result.monthly_cost == 50.0
-        assert result.details == {"key": "value"}
-        assert result.success is True
-        assert result.error_message is None
-    
-    def test_simulation_result_with_error(self):
-        """Test de création d'un SimulationResult avec erreur."""
-        result = SimulationResult(
-            monthly_cost=0.0,
-            details={},
-            success=False,
-            error_message="An error occurred"
-        )
-        
-        assert result.success is False
-        assert result.error_message == "An error occurred"
+        assert len(logs) > 0
+        assert any("test-id" in log for log in logs)

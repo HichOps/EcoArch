@@ -1,103 +1,118 @@
+"""Parser pour les rapports Infracost JSON."""
 import json
-import sys
 import os
 from pathlib import Path
-from typing import Dict, Any, List
-from supabase import create_client, Client
+from typing import Any
+
 
 class EcoArchParser:
+    """Parse et analyse les rapports de coûts Infracost."""
+    
     def __init__(self, json_path: str):
         self.json_path = Path(json_path)
+        self.data = self._load_data()
+        self.resources = self._flatten_resources()
+    
+    def _load_data(self) -> dict:
+        """Charge le fichier JSON ou retourne un dict vide."""
         if not self.json_path.exists():
-            print(f"❌ Erreur : Le fichier '{json_path}' est introuvable.")
-            # On ne quitte pas brutalement pour laisser les autres scripts tourner, 
-            # mais on initialise des données vides.
-            self.data = {}
-            self.resources = []
-        else:
-            self.data = self._load_data()
-            self.resources = self._flatten_resources()
-
-    def _load_data(self) -> Dict[str, Any]:
-        try:
-            with open(self.json_path, 'r') as f:
-                return json.load(f)
-        except json.JSONDecodeError:
-            print("❌ Erreur : Le fichier JSON est malformé.")
+            print(f"❌ Fichier introuvable: {self.json_path}")
             return {}
-
-    def _safe_float(self, value: Any) -> float:
-        """Convertit en float en gérant les valeurs nulles ou manquantes."""
+        
         try:
-            return float(value) if value is not None else 0.0
+            with open(self.json_path, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON malformé: {e}")
+            return {}
+    
+    @staticmethod
+    def _safe_float(value: Any) -> float:
+        """Convertit une valeur en float de manière sécurisée."""
+        if value is None:
+            return 0.0
+        try:
+            return float(value)
         except (ValueError, TypeError):
             return 0.0
-
-    def _flatten_resources(self) -> List[Dict[str, Any]]:
-        flattened = []
-        projects = self.data.get("projects", []) or []
-        for project in projects:
-            breakdown = project.get("breakdown", {}) or {}
-            resources = breakdown.get("resources", []) or []
-            for res in resources:
-                flattened.append({
+    
+    def _flatten_resources(self) -> list[dict]:
+        """Extrait une liste plate des ressources depuis tous les projets."""
+        resources = []
+        
+        for project in self.data.get("projects") or []:
+            breakdown = project.get("breakdown") or {}
+            for res in breakdown.get("resources") or []:
+                resources.append({
                     "name": res.get("name", "Unnamed"),
-                    "type": res.get("resourceType", "Unknown"), # Ajout du Type
+                    "type": res.get("resourceType", "Unknown"),
                     "monthly_cost": self._safe_float(res.get("monthlyCost")),
-                    "delta": self._safe_float(res.get("diffMonthlyCost"))
+                    "delta": self._safe_float(res.get("diffMonthlyCost")),
                 })
-        return flattened
-
-    def extract_metrics(self) -> Dict[str, Any]:
+        
+        return resources
+    
+    def extract_metrics(self) -> dict[str, Any]:
+        """Extrait les métriques principales du rapport."""
         return {
             "total_monthly_cost": self._safe_float(self.data.get("totalMonthlyCost")),
             "diff_monthly_cost": self._safe_float(self.data.get("diffTotalMonthlyCost")),
-            "currency": self.data.get("currency", "USD")
+            "currency": self.data.get("currency", "USD"),
         }
-
-    def save_to_supabase(self):
+    
+    def save_to_supabase(self) -> None:
+        """Enregistre les métriques dans Supabase (optionnel)."""
+        from supabase import create_client
+        
         url = os.getenv("SUPABASE_URL")
         key = os.getenv("SUPABASE_SERVICE_KEY")
         
-        # On ne bloque pas si pas de Supabase (utile pour tests locaux)
         if not url or not key:
-            print("⏭️ Supabase credentials non trouvées (Variable Protected ?).")
+            print("⏭️ Supabase non configuré, sauvegarde ignorée.")
             return
-
+        
         try:
             supabase = create_client(url, key)
             metrics = self.extract_metrics()
-            limit = float(os.getenv("ECOARCH_BUDGET_LIMIT", 100.0))
+            budget = float(os.getenv("ECOARCH_BUDGET_LIMIT", 100.0))
+            cost = metrics["total_monthly_cost"]
             
             record = {
                 "project_id": os.getenv("CI_PROJECT_NAME", "ecoarch-local"),
                 "branch_name": os.getenv("CI_COMMIT_REF_NAME", "local"),
                 "commit_sha": os.getenv("CI_COMMIT_SHORT_SHA", "HEAD"),
                 "author": os.getenv("CI_COMMIT_AUTHOR", "Unknown"),
-                "total_monthly_cost": metrics["total_monthly_cost"],
+                "total_monthly_cost": cost,
                 "diff_monthly_cost": metrics["diff_monthly_cost"],
                 "currency": metrics["currency"],
-                "budget_limit": limit,
-                "status": "PASSED" if metrics["total_monthly_cost"] <= limit else "FAILED"
+                "budget_limit": budget,
+                "status": "PASSED" if cost <= budget else "FAILED",
             }
+            
             supabase.table("cost_history").insert(record).execute()
-            print(f"✅ Data envoyée à Supabase (Statut: {record['status']})")
+            print(f"✅ Supabase: {record['status']}")
+            
         except Exception as e:
-            print(f"❌ Erreur Supabase : {e}")
-
+            print(f"❌ Erreur Supabase: {e}")
+    
     def generate_markdown_report(self) -> str:
+        """Génère un rapport Markdown pour GitLab/GitHub."""
         metrics = self.extract_metrics()
-        currency = metrics['currency']
-        total = metrics['total_monthly_cost']
-        diff = metrics['diff_monthly_cost']
-
-        # En-tête avec indicateurs visuels
-        report = [f"## 🛠️ EcoArch FinOps Analysis"]
-        report.append(f"**Total Mensuel Estimé :** `{total:.2f} {currency}`")
+        currency = metrics["currency"]
+        total = metrics["total_monthly_cost"]
+        diff = metrics["diff_monthly_cost"]
         
+        lines = [
+            "## 🛠️ EcoArch FinOps Analysis",
+            f"**Total Mensuel Estimé:** `{total:.2f} {currency}`",
+        ]
+        
+        # Indicateur de variation
         if diff > 0:
-            report.append(f"**Variation :** 🔺 `+{diff:.2f} {currency}` (Hausse)")
+            lines.append(f"**Variation:** 🔺 `+{diff:.2f} {currency}` (Hausse)")
         elif diff < 0:
-            report.append(f"**Variation :** 🟢 `{diff:.2f} {currency}` (Économie)")
+            lines.append(f"**Variation:** 🟢 `{diff:.2f} {currency}` (Économie)")
         else:
-            report.append(f"**Variation :** ➖ `0.00 {currency}` (Stable)")
+            lines.append(f"**Variation:** ➖ `0.00 {currency}` (Stable)")
+        
+        return "\n".join(lines)

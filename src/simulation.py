@@ -1,217 +1,289 @@
-import subprocess
+"""Simulateur de coûts infrastructure via Infracost et Terraform."""
 import json
-import tempfile
 import logging
 import os
-import shutil
+import subprocess
+import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Any, List, Optional, Generator
-from dataclasses import dataclass
-from .config import Config
+from typing import Any, Generator, Optional
+
+from .config import Config, GCPConfig
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
 @dataclass
 class SimulationResult:
+    """Résultat d'une simulation de coûts."""
     success: bool
     monthly_cost: float = 0.0
-    details: Dict[str, Any] = None
+    details: dict[str, Any] = field(default_factory=dict)
     error_message: Optional[str] = None
 
+
 class InfracostSimulator:
-    def __init__(self, project_id: Optional[str] = None, timeout: Optional[int] = None):
+    """Simule et déploie des ressources GCP avec estimation des coûts."""
+    
+    def __init__(
+        self,
+        project_id: Optional[str] = None,
+        timeout: Optional[int] = None,
+    ):
         self.project_id = project_id or Config.GCP_PROJECT_ID
         self.timeout = timeout or Config.INFRACOST_TIMEOUT
     
-    def _generate_terraform_code(self, resources: List[Dict[str, Any]], deployment_id: str = "simulation") -> str:
-        # 1. ISOLATION : Le prefix du backend dépend maintenant de l'ID unique !
+    def _generate_terraform_code(
+        self,
+        resources: list[dict[str, Any]],
+        deployment_id: str = "simulation",
+    ) -> str:
+        """Génère le code Terraform pour les ressources demandées."""
         state_prefix = f"terraform/state/{deployment_id}"
-
-        tf_code = f"""
-        terraform {{
-          backend "gcs" {{
-            bucket  = "{Config.TERRAFORM_STATE_BUCKET}"
-            prefix  = "{state_prefix}"
-          }}
-        }}
-
-        provider "google" {{
-          project = "{self.project_id}"
-          region  = "{Config.DEFAULT_REGION}"
-        }}
-        """
         
+        # Header Terraform
+        tf_parts = [
+            f'''
+terraform {{
+  backend "gcs" {{
+    bucket  = "{Config.TERRAFORM_STATE_BUCKET}"
+    prefix  = "{state_prefix}"
+  }}
+}}
+
+provider "google" {{
+  project = "{self.project_id}"
+  region  = "{Config.DEFAULT_REGION}"
+}}
+'''
+        ]
+        
+        # Génération des ressources
         for idx, res in enumerate(resources):
-            r_type = res.get("type", "compute")
-            # Nom interne Terraform
-            name = f"res-{idx}-{r_type}"
-            
-            # --- CAS 1 : COMPUTE ENGINE (VM) ---
-            if r_type == "compute":
-                machine = res.get("machine_type", "e2-medium")
-                disk = res.get("disk_size", 50)
-                zone = f"{Config.DEFAULT_REGION}-a"
-                
-                # Nom réel GCP avec l'ID pour éviter les conflits
-                gcp_name = f"{name}-{deployment_id}"
-
-                tf_code += f"""
-                resource "google_compute_instance" "{name}" {{
-                  name         = "{gcp_name}" 
-                  machine_type = "{machine}"
-                  zone         = "{zone}"
-                  boot_disk {{
-                    initialize_params {{
-                      image = "{Config.DEFAULT_IMAGE}"
-                      size  = {disk}
-                    }}
-                  }}
-                  network_interface {{ network = "default" }}
-                  labels = {{
-                    deployment_id = "{deployment_id}"
-                    managed_by = "ecoarch-app"
-                  }}
-                }}
-                """
-
-            # --- CAS 2 : CLOUD SQL (DATABASE) ---
-            elif r_type == "sql":
-                tier = res.get("db_tier", "db-f1-micro")
-                version = res.get("db_version", "POSTGRES_14")
-                gcp_name = f"{name}-{deployment_id}"
-                
-                tf_code += f"""
-                resource "google_sql_database_instance" "{name}" {{
-                  name             = "{gcp_name}"
-                  database_version = "{version}"
-                  region           = "{Config.DEFAULT_REGION}"
-                  settings {{
-                    tier = "{tier}"
-                  }}
-                  deletion_protection = false
-                }}
-                """
-
-            # --- CAS 3 : CLOUD STORAGE ---
-            elif r_type == "storage":
-                storage_class = res.get("storage_class", "STANDARD")
-                # Bucket doit être en minuscules et unique mondialement
-                safe_name = f"{self.project_id}-{name}-{deployment_id}".lower()
-                
-                tf_code += f"""
-                resource "google_storage_bucket" "{name}" {{
-                  name          = "{safe_name}"
-                  location      = "{Config.DEFAULT_REGION}"
-                  storage_class = "{storage_class}"
-                  force_destroy = true
-                }}
-                """
-
-            # --- NOUVEAU BLOC : LOAD BALANCER ---
-            elif r_type == "load_balancer":
-                # On simule un Global Forwarding Rule (HTTP LB classique)
-                tf_code += f"""
-                resource "google_compute_global_forwarding_rule" "{name}" {{
-                  name       = "{name}-{deployment_id}"
-                  target     = "default-target-http-proxy" # Simplifié pour le coût
-                  port_range = "80"
-                  labels = {{
-                    deployment_id = "{deployment_id}"
-                  }}
-                }}
-                """
-
-        return tf_code
+            resource_type = res.get("type", "compute")
+            tf_code = self._generate_resource_tf(idx, resource_type, res, deployment_id)
+            if tf_code:
+                tf_parts.append(tf_code)
+        
+        return "\n".join(tf_parts)
     
-    def simulate(self, resources: List[Dict[str, Any]]) -> SimulationResult:
+    def _generate_resource_tf(
+        self,
+        idx: int,
+        resource_type: str,
+        res: dict,
+        deployment_id: str,
+    ) -> str:
+        """Génère le code Terraform pour une ressource spécifique."""
+        name = f"res-{idx}-{resource_type}"
+        gcp_name = f"{name}-{deployment_id}"
+        
+        generators = {
+            "compute": self._tf_compute,
+            "sql": self._tf_sql,
+            "storage": self._tf_storage,
+            "load_balancer": self._tf_load_balancer,
+        }
+        
+        generator = generators.get(resource_type)
+        if generator:
+            return generator(name, gcp_name, res, deployment_id)
+        return ""
+    
+    def _tf_compute(self, name: str, gcp_name: str, res: dict, deployment_id: str) -> str:
+        """Génère une ressource Compute Engine."""
+        machine = res.get("machine_type", "e2-medium")
+        disk = res.get("disk_size", 50)
+        zone = f"{Config.DEFAULT_REGION}-a"
+        software_stack = res.get("software_stack", "none")
+        startup_script = GCPConfig.get_startup_script(software_stack)
+        
+        # Section metadata pour startup_script si une stack est sélectionnée
+        metadata_section = ""
+        if startup_script:
+            # Échapper les guillemets et retours à la ligne pour Terraform
+            escaped_script = startup_script.replace('\\', '\\\\').replace('"', '\\"')
+            metadata_section = f'''
+  metadata = {{
+    startup-script = "{escaped_script}"
+  }}'''
+        
+        return f'''
+resource "google_compute_instance" "{name}" {{
+  name         = "{gcp_name}"
+  machine_type = "{machine}"
+  zone         = "{zone}"
+  boot_disk {{
+    initialize_params {{
+      image = "{Config.DEFAULT_IMAGE}"
+      size  = {disk}
+    }}
+  }}
+  network_interface {{ network = "default" }}{metadata_section}
+  labels = {{
+    deployment_id = "{deployment_id}"
+    managed_by    = "ecoarch-app"
+    software_stack = "{software_stack}"
+  }}
+}}
+'''
+    
+    def _tf_sql(self, name: str, gcp_name: str, res: dict, _: str) -> str:
+        """Génère une ressource Cloud SQL."""
+        tier = res.get("db_tier", "db-f1-micro")
+        version = res.get("db_version", "POSTGRES_14")
+        
+        return f'''
+resource "google_sql_database_instance" "{name}" {{
+  name             = "{gcp_name}"
+  database_version = "{version}"
+  region           = "{Config.DEFAULT_REGION}"
+  settings {{ tier = "{tier}" }}
+  deletion_protection = false
+}}
+'''
+    
+    def _tf_storage(self, name: str, _: str, res: dict, deployment_id: str) -> str:
+        """Génère une ressource Cloud Storage."""
+        storage_class = res.get("storage_class", "STANDARD")
+        safe_name = f"{self.project_id}-{name}-{deployment_id}".lower()
+        
+        return f'''
+resource "google_storage_bucket" "{name}" {{
+  name          = "{safe_name}"
+  location      = "{Config.DEFAULT_REGION}"
+  storage_class = "{storage_class}"
+  force_destroy = true
+}}
+'''
+    
+    def _tf_load_balancer(self, name: str, _: str, __: dict, deployment_id: str) -> str:
+        """Génère une ressource Load Balancer."""
+        return f'''
+resource "google_compute_global_address" "{name}" {{
+  name = "lb-ip-{deployment_id}"
+}}
+'''
+    
+    def simulate(self, resources: list[dict[str, Any]]) -> SimulationResult:
+        """Simule les coûts des ressources via Infracost."""
         if not resources:
             return SimulationResult(success=True, monthly_cost=0.0, details={})
-
+        
         try:
-            with tempfile.TemporaryDirectory(prefix=Config.TEMP_FILE_PREFIX) as tmpdirname:
-                tf_path = Path(tmpdirname) / "main.tf"
-                # Pour la simulation de coût, l'ID importe peu, on met "simulation_tmp"
-                with open(tf_path, "w") as f:
-                    f.write(self._generate_terraform_code(resources, deployment_id="simulation_tmp"))
+            with tempfile.TemporaryDirectory(prefix=Config.TEMP_FILE_PREFIX) as tmpdir:
+                tf_path = Path(tmpdir) / "main.tf"
+                tf_path.write_text(
+                    self._generate_terraform_code(resources, "simulation_tmp")
+                )
                 
-                cmd = ["infracost", "breakdown", "--path", str(tmpdirname), "--format", "json", "--log-level", "info"]
-                process = subprocess.run(cmd, capture_output=True, text=True, timeout=self.timeout, env=os.environ)
-
-                if process.returncode != 0:
-                    return SimulationResult(success=False, error_message=f"Erreur CLI: {process.stderr}")
-
+                result = subprocess.run(
+                    ["infracost", "breakdown", "--path", tmpdir, "--format", "json"],
+                    capture_output=True,
+                    text=True,
+                    timeout=self.timeout,
+                    env=os.environ,
+                    check=False,
+                )
+                
+                if result.returncode != 0:
+                    return SimulationResult(
+                        success=True,
+                        monthly_cost=0.0,
+                        details={},
+                        error_message=f"Warning: {result.stderr}",
+                    )
+                
                 try:
-                    data = json.loads(process.stdout)
-                    total_cost = float(data.get("totalMonthlyCost", 0.0))
-                    return SimulationResult(success=True, monthly_cost=total_cost, details=data)
-                except json.JSONDecodeError:
-                     return SimulationResult(success=False, error_message="Réponse Infracost invalide")
-
+                    data = json.loads(result.stdout)
+                    return SimulationResult(
+                        success=True,
+                        monthly_cost=float(data.get("totalMonthlyCost", 0.0)),
+                        details=data,
+                    )
+                except (json.JSONDecodeError, ValueError):
+                    return SimulationResult(success=True, monthly_cost=0.0, details={})
+                    
+        except subprocess.TimeoutExpired:
+            return SimulationResult(
+                success=False,
+                error_message="Timeout: Infracost n'a pas répondu à temps",
+            )
         except Exception as e:
             return SimulationResult(success=False, error_message=str(e))
-
-    # --- DEPLOIEMENT ISOLE ---
-    def deploy(self, resources: List[Dict[str, Any]], deployment_id: str) -> Generator[str, None, None]:
-        if not resources:
-            yield "❌ Erreur : Aucune ressource à déployer."
-            return
-
-        with tempfile.TemporaryDirectory(prefix=f"ecoarch_{deployment_id}_") as tmpdirname:
-            tf_path = Path(tmpdirname) / "main.tf"
+    
+    def deploy(
+        self,
+        resources: list[dict[str, Any]],
+        deployment_id: str,
+    ) -> Generator[str, None, None]:
+        """Déploie les ressources via Terraform (générateur pour streaming)."""
+        with tempfile.TemporaryDirectory(prefix=f"ecoarch_{deployment_id}_") as tmpdir:
+            tf_path = Path(tmpdir) / "main.tf"
+            yield f"📝 ID: {deployment_id}"
             
-            yield f"📝 ID de déploiement unique : {deployment_id}"
-            with open(tf_path, "w") as f:
-                f.write(self._generate_terraform_code(resources, deployment_id))
+            tf_path.write_text(self._generate_terraform_code(resources, deployment_id))
             
-            yield "⚙️ Isolation du Workspace (Init)..."
-            init_cmd = ["terraform", "init", "-input=false", "-no-color"]
-            process_init = subprocess.Popen(init_cmd, cwd=tmpdirname, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=os.environ)
-            process_init.wait()
-
-            if process_init.returncode != 0:
-                yield "❌ Échec de l'initialisation Terraform."
-                raise Exception("Terraform Init Failed")
-
-            yield "🚀 Démarrage du déploiement isolé..."
-            apply_cmd = ["terraform", "apply", "-auto-approve", "-input=false", "-no-color"]
-            process_apply = subprocess.Popen(apply_cmd, cwd=tmpdirname, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=os.environ)
+            # Init
+            yield "⚙️ Terraform init..."
+            yield from self._run_terraform(tmpdir, ["init", "-input=false", "-no-color", "-reconfigure"])
             
-            for line in process_apply.stdout:
-                clean = line.strip()
-                if clean: yield clean
+            # Apply
+            yield "🚀 Terraform apply..."
+            yield from self._run_terraform(tmpdir, ["apply", "-auto-approve", "-input=false", "-no-color"])
             
-            process_apply.wait()
-            if process_apply.returncode == 0: yield "✅ Déploiement terminé avec succès !"
-            else: 
-                yield "⚠️ Erreur lors du déploiement."
-                raise Exception("Terraform Apply Failed")
-
-    # --- DESTRUCTION CIBLÉE ---
-    def destroy(self, resources: List[Dict[str, Any]], deployment_id: str) -> Generator[str, None, None]:
-        with tempfile.TemporaryDirectory(prefix=f"ecoarch_destroy_{deployment_id}_") as tmpdirname:
-            tf_path = Path(tmpdirname) / "main.tf"
+            yield "✅ Déploiement terminé"
+    
+    def destroy(
+        self,
+        resources: list[dict[str, Any]],
+        deployment_id: str,
+    ) -> Generator[str, None, None]:
+        """Détruit les ressources via Terraform (générateur pour streaming)."""
+        with tempfile.TemporaryDirectory(prefix=f"ecoarch_destroy_{deployment_id}_") as tmpdir:
+            tf_path = Path(tmpdir) / "main.tf"
+            yield f"🔥 Cible: {deployment_id}"
             
-            yield f"🔥 Ciblage de l'environnement : {deployment_id}"          
-            # On passe une liste VIDE [] au lieu de 'resources'.
-            # Cela force Terraform à se concentrer uniquement sur le fichier d'état distant (l'ID).
-            with open(tf_path, "w") as f:
-                f.write(self._generate_terraform_code([], deployment_id))
+            # On génère un fichier vide pour récupérer le state et tout détruire
+            tf_path.write_text(self._generate_terraform_code([], deployment_id))
             
-            yield "⚙️ Connexion au State isolé..."
-            init_cmd = ["terraform", "init", "-input=false", "-no-color"]
-            subprocess.Popen(init_cmd, cwd=tmpdirname, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=os.environ).wait()
-
-            yield "⚠️ Destruction des ressources de CET environnement uniquement..."
-            destroy_cmd = ["terraform", "destroy", "-auto-approve", "-input=false", "-no-color"]
-            process_destroy = subprocess.Popen(destroy_cmd, cwd=tmpdirname, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, env=os.environ)
+            # Init
+            yield "⏳ Connexion au state..."
+            for line in self._run_terraform(tmpdir, ["init", "-input=false", "-no-color", "-reconfigure"]):
+                yield f"Init > {line}"
             
-            for line in process_destroy.stdout:
-                clean = line.strip()
-                if clean: yield f"Destroy > {clean}"
+            # Destroy avec -lock=false pour forcer
+            yield "⚠️ Destruction en cours..."
+            for line in self._run_terraform(
+                tmpdir,
+                ["destroy", "-auto-approve", "-input=false", "-lock=false", "-no-color"],
+            ):
+                if line.strip():
+                    yield f"Destroy > {line}"
             
-            process_destroy.wait()
-            if process_destroy.returncode == 0: yield "🗑️ Environnement spécifique détruit."
-            else: 
-                yield "⚠️ Erreur lors de la destruction."
-                raise Exception("Terraform Destroy Failed")
+            yield "🗑️ Nettoyage terminé"
+    
+    def _run_terraform(
+        self,
+        cwd: str,
+        args: list[str],
+    ) -> Generator[str, None, None]:
+        """Exécute une commande Terraform avec streaming des logs."""
+        process = subprocess.Popen(
+            ["terraform", *args],
+            cwd=cwd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            env=os.environ,
+            bufsize=1,
+        )
+        
+        for line in process.stdout:
+            yield line.strip()
+        
+        process.wait()
+        
+        if process.returncode != 0:
+            raise Exception(f"Terraform {args[0]} failed")

@@ -1,7 +1,9 @@
+"""Composants de cartes réutilisables."""
 import reflex as rx
 
-def card_container(child, bg_color="white"):
-    """Un conteneur générique avec style 'Glass' et ombre douce"""
+
+def card_container(child: rx.Component, bg_color: str = "white") -> rx.Component:
+    """Conteneur de carte avec effet glass et ombre."""
     return rx.box(
         child,
         bg=bg_color,
@@ -18,30 +20,42 @@ def card_container(child, bg_color="white"):
         width="100%",
     )
 
-def price_hero(cost: float, accent_color: str, icon_tag: str, label_text: str):
-    """L'affichage central du prix avec un design premium"""
+
+def price_hero(
+    cost: float,
+    accent_color: str,
+    icon_tag: str,
+    label_text: str,
+) -> rx.Component:
+    """Affichage central du prix avec design premium."""
     return card_container(
         rx.vstack(
             rx.text(
-                "Estimation Mensuelle", 
-                size="2", 
-                weight="bold", 
-                color=rx.color("slate", 10), 
-                letter_spacing="1px", 
-                text_transform="uppercase"
+                "Estimation Mensuelle",
+                size="2",
+                weight="bold",
+                color=rx.color("slate", 10),
+                letter_spacing="1px",
+                text_transform="uppercase",
             ),
             rx.hstack(
-                rx.text("$", size="8", weight="medium", color=rx.color("slate", 9), padding_top="1rem"),
                 rx.text(
-                    f"{cost:.2f}", 
-                    size="9", 
-                    weight="bold", 
-                    line_height="1", 
-                    letter_spacing="-2px", 
-                    color=rx.color("slate", 12)
+                    "$",
+                    size="8",
+                    weight="medium",
+                    color=rx.color("slate", 9),
+                    padding_top="1rem",
+                ),
+                rx.text(
+                    f"{cost:.2f}",
+                    size="9",
+                    weight="bold",
+                    line_height="1",
+                    letter_spacing="-2px",
+                    color=rx.color("slate", 12),
                 ),
                 align="start",
-                spacing="1"
+                spacing="1",
             ),
             rx.badge(
                 rx.icon(icon_tag, size=16),
@@ -54,25 +68,47 @@ def price_hero(cost: float, accent_color: str, icon_tag: str, label_text: str):
             ),
             align="center",
             spacing="5",
-            width="100%"
+            width="100%",
         ),
-        bg_color="rgba(255, 255, 255, 0.8)"
+        bg_color="rgba(255, 255, 255, 0.8)",
     )
 
-def stat_card(label: str, value: str, subtext: str, icon: str, color_scheme: str):
-    """Carte KPI pour le Dashboard de Gouvernance"""
+
+def stat_card(
+    label: str,
+    value: str,
+    subtext: str,
+    icon: str,
+    color_scheme: str,
+) -> rx.Component:
+    """Carte KPI pour le dashboard de gouvernance."""
     return card_container(
         rx.vstack(
             rx.hstack(
                 rx.icon(icon, size=20, color=rx.color(color_scheme, 9)),
-                rx.text(label, weight="bold", size="2", color=rx.color("slate", 10)),
+                rx.text(
+                    label,
+                    weight="bold",
+                    size="2",
+                    color=rx.color("slate", 10),
+                ),
                 align="center",
-                spacing="2"
+                spacing="2",
             ),
-            rx.text(value, size="7", weight="bold", color=rx.color("slate", 12)),
-            rx.text(subtext, size="2", weight="medium", color=rx.color(color_scheme, 10)),
+            rx.text(
+                value,
+                size="7",
+                weight="bold",
+                color=rx.color("slate", 12),
+            ),
+            rx.text(
+                subtext,
+                size="2",
+                weight="medium",
+                color=rx.color(color_scheme, 10),
+            ),
             align="start",
-            spacing="3"
+            spacing="3",
         ),
-        bg_color="white"
+        bg_color="white",
     )

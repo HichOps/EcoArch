@@ -1,86 +1,155 @@
+"""Composant Bloc de pricing et actions."""
 import reflex as rx
-from ..state import State
 
-def pricing_block():
+from ..state import State
+from src.config import Config
+
+BUDGET_LIMIT = Config.DEFAULT_BUDGET_LIMIT
+
+
+def pricing_block() -> rx.Component:
+    """Bloc d'affichage du prix et actions de déploiement."""
+    return rx.box(
+        rx.vstack(
+            # Label
+            rx.text(
+                "ESTIMATION MENSUELLE",
+                font_size="10px",
+                weight="bold",
+                letter_spacing="1px",
+                color="var(--gray-11)",
+            ),
+            
+            # Prix principal
+            rx.text(
+                f"${State.cost}",
+                font_size="48px",
+                weight="bold",
+                color=rx.cond(
+                    State.cost > BUDGET_LIMIT,
+                    "var(--ruby-9)",
+                    "var(--grass-9)",
+                ),
+            ),
+            
+            # Badge budget
+            rx.badge(
+                rx.cond(
+                    State.cost > BUDGET_LIMIT,
+                    "Budget Explosé",
+                    "Budget Respecté",
+                ),
+                color_scheme=rx.cond(State.cost > BUDGET_LIMIT, "ruby", "grass"),
+                variant="solid",
+                radius="full",
+                padding_x="10px",
+            ),
+            
+            rx.divider(margin_y="20px", width="100%"),
+            
+            # Bouton Deploy
+            _deploy_button(),
+            
+            rx.divider(margin_y="10px", width="100%", opacity="0"),
+            
+            # Zone destruction
+            _destroy_zone(),
+            
+            # Graphique donut
+            _cost_chart(),
+            
+            align="center",
+            spacing="4",
+        ),
+        padding="30px",
+        background=rx.cond(
+            State.cost > BUDGET_LIMIT,
+            "var(--ruby-2)",
+            "var(--green-2)",
+        ),
+        border="1px solid",
+        border_color=rx.cond(
+            State.cost > BUDGET_LIMIT,
+            "var(--ruby-6)",
+            "var(--green-6)",
+        ),
+        border_radius="16px",
+        width="100%",
+    )
+
+
+def _deploy_button() -> rx.Component:
+    """Bouton de déploiement."""
+    return rx.button(
+        rx.hstack(
+            rx.icon("rocket", size=18),
+            rx.text("DÉPLOYER"),
+        ),
+        on_click=State.start_deployment,
+        disabled=State.cost > BUDGET_LIMIT,
+        width="100%",
+        size="3",
+        color_scheme=rx.cond(State.cost > BUDGET_LIMIT, "ruby", "grass"),
+        variant="solid",
+        cursor=rx.cond(State.cost > BUDGET_LIMIT, "not-allowed", "pointer"),
+        opacity=rx.cond(State.cost > BUDGET_LIMIT, "0.5", "1"),
+    )
+
+
+def _destroy_zone() -> rx.Component:
+    """Zone de destruction d'infrastructure."""
     return rx.box(
         rx.vstack(
             rx.text(
-                "ESTIMATION MENSUELLE", 
-                size="2", weight="bold", letter_spacing="1px",
-                color=rx.cond(State.cost <= 50, "var(--green-9)", "var(--red-9)")
+                "Récupération / Nettoyage",
+                size="1",
+                weight="bold",
+                color="gray",
             ),
-            
-            rx.heading(
-                f"${State.cost:.2f}", 
-                size="9", weight="bold",
-                color=rx.cond(State.cost <= 50, "var(--green-9)", "var(--red-9)"), 
+            rx.input(
+                placeholder="ID Infra (ex: f1305d66)",
+                on_change=State.set_destroy_id_input,
+                size="2",
+                variant="soft",
+                radius="medium",
+                width="100%",
             ),
-            
-            rx.badge(
+            rx.button(
                 rx.hstack(
-                    rx.icon(rx.cond(State.cost <= 50, "circle-check", "triangle-alert"), size=16),
-                    rx.text(rx.cond(State.cost <= 50, "Budget Respecté", "Budget Explosé"))
+                    rx.icon("trash", size=16),
+                    rx.text("DÉTRUIRE L'INFRA"),
                 ),
-                variant="solid",
-                color_scheme=rx.cond(State.cost <= 50, "green", "red"),
-                radius="full", padding="0.5rem 1rem"
+                on_click=State.start_destruction,
+                width="100%",
+                size="2",
+                variant="outline",
+                color_scheme="orange",
             ),
-
-            rx.divider(margin_y="10px", opacity="0.2"),
-
-            # --- ZONE D'ACTIONS ---
-            rx.vstack(
-                # BOUTON 1 : DÉPLOYER
-                rx.cond(
-                    State.cost <= 50,
-                    rx.button(
-                        rx.hstack(rx.icon("rocket", size=20), rx.text("DÉPLOYER", weight="bold")),
-                        on_click=State.start_deployment,
-                        loading=State.is_deploying,
-                        disabled=State.is_deploying,
-                        width="100%", size="4", color_scheme="ruby", variant="solid",
-                        box_shadow="0 0 20px rgba(229, 62, 62, 0.4)",
-                        _hover={"transform": "scale(1.02)"}, transition="all 0.2s ease"
-                    ),
-                    rx.button(
-                        rx.hstack(rx.icon("lock", size=20), rx.text("BUDGET DÉPASSÉ", weight="bold")),
-                        disabled=True, width="100%", size="4", color_scheme="gray", variant="soft"
-                    )
-                ),
-
-                # BOUTON 2 : DÉTRUIRE
-                rx.button(
-                    rx.hstack(rx.icon("trash-2", size=18), rx.text("DÉTRUIRE L'INFRA", weight="bold")),
-                    on_click=State.start_destruction,
-                    disabled=State.is_deploying, 
-                    width="100%", 
-                    size="3", 
-                    variant="outline", 
-                    color_scheme="orange",
-                    title="Supprime l'infra liée à cet ID"
-                ),
-                spacing="3", width="100%"
-            ),
-
-            # Graphique
-            rx.cond(
-                State.cost > 0,
-                rx.box(
-                    rx.recharts.pie_chart(
-                        rx.recharts.pie(
-                            data=State.chart_data, 
-                            data_key="value", name_key="name",
-                            cx="50%", cy="50%", inner_radius=50, outer_radius=70, 
-                            stroke="none", is_animation_active=False
-                        ),
-                        rx.recharts.legend(), height=180, width="100%"
-                    ),
-                    width="100%"
-                )
-            ),
-            spacing="4", align="center", width="100%"
+            spacing="2",
+            width="100%",
         ),
-        background=rx.cond(State.cost <= 50, rx.color("green", 3), rx.color("red", 3)),
-        border=rx.cond(State.cost <= 50, f"2px solid {rx.color('green', 9)}", f"2px solid {rx.color('red', 9)}"),
-        border_radius="12px", padding="24px", width="100%", box_shadow="0 4px 20px rgba(0,0,0,0.1)"
+        width="100%",
+        padding="10px",
+        border="1px dashed var(--orange-6)",
+        border_radius="8px",
+        background="var(--orange-2)",
+    )
+
+
+def _cost_chart() -> rx.Component:
+    """Graphique de répartition des coûts."""
+    return rx.recharts.pie_chart(
+        rx.recharts.pie(
+            data=State.chart_data,
+            data_key="value",
+            name_key="name",
+            cx="50%",
+            cy="50%",
+            inner_radius=40,
+            outer_radius=60,
+            padding_angle=2,
+        ),
+        rx.recharts.legend(),
+        height=200,
+        width="100%",
     )
