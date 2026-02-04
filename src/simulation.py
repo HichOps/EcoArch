@@ -38,13 +38,14 @@ class InfracostSimulator:
         self,
         resources: list[dict[str, Any]],
         deployment_id: str = "simulation",
+        include_backend: bool = True,
     ) -> str:
         """Génère le code Terraform pour les ressources demandées."""
         state_prefix = f"terraform/state/{deployment_id}"
         
-        # Header Terraform
-        tf_parts = [
-            f'''
+        # Header Terraform - avec ou sans backend selon le contexte
+        if include_backend:
+            tf_header = f'''
 terraform {{
   backend "gcs" {{
     bucket  = "{Config.TERRAFORM_STATE_BUCKET}"
@@ -57,7 +58,24 @@ provider "google" {{
   region  = "{Config.DEFAULT_REGION}"
 }}
 '''
-        ]
+        else:
+            # Pour la simulation Infracost, pas besoin de backend
+            tf_header = f'''
+terraform {{
+  required_providers {{
+    google = {{
+      source = "hashicorp/google"
+    }}
+  }}
+}}
+
+provider "google" {{
+  project = "{self.project_id}"
+  region  = "{Config.DEFAULT_REGION}"
+}}
+'''
+        
+        tf_parts = [tf_header]
         
         # Génération des ressources
         for idx, res in enumerate(resources):
@@ -103,10 +121,12 @@ provider "google" {{
         metadata_section = ""
         if startup_script:
             # Échapper les guillemets et retours à la ligne pour Terraform
-            escaped_script = startup_script.replace('\\', '\\\\').replace('"', '\\"')
+            # Utiliser un heredoc Terraform pour les scripts multi-lignes
             metadata_section = f'''
   metadata = {{
-    startup-script = "{escaped_script}"
+    startup-script = <<-EOF
+{startup_script}
+EOF
   }}'''
         
         return f'''
@@ -174,8 +194,9 @@ resource "google_compute_global_address" "{name}" {{
         try:
             with tempfile.TemporaryDirectory(prefix=Config.TEMP_FILE_PREFIX) as tmpdir:
                 tf_path = Path(tmpdir) / "main.tf"
+                # Utiliser include_backend=False pour la simulation (pas besoin d'état GCS)
                 tf_path.write_text(
-                    self._generate_terraform_code(resources, "simulation_tmp")
+                    self._generate_terraform_code(resources, "simulation_tmp", include_backend=False)
                 )
                 
                 result = subprocess.run(

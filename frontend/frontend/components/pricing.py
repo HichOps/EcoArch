@@ -1,4 +1,4 @@
-"""Composant Bloc de pricing et actions."""
+"""Composant Bloc de pricing et actions - Design Apple-like."""
 import reflex as rx
 
 from ..state import State
@@ -6,51 +6,87 @@ from src.config import Config
 
 BUDGET_LIMIT = Config.DEFAULT_BUDGET_LIMIT
 
+# Couleurs Apple
+APPLE_GREEN = "#34C759"
+APPLE_RED = "#FF3B30"
+APPLE_ORANGE = "#FF9500"
+
 
 def pricing_block() -> rx.Component:
-    """Bloc d'affichage du prix et actions de déploiement."""
+    """Bloc d'affichage du prix et actions de déploiement - Style Apple."""
     return rx.box(
         rx.vstack(
             # Label
             rx.text(
                 "ESTIMATION MENSUELLE",
-                font_size="10px",
+                font_size="11px",
                 weight="bold",
-                letter_spacing="1px",
-                color="var(--gray-11)",
+                letter_spacing="0.08em",
+                color="var(--gray-10)",
             ),
             
-            # Prix principal
-            rx.text(
-                f"${State.cost}",
-                font_size="48px",
-                weight="bold",
-                color=rx.cond(
+            # Prix principal avec animation
+            rx.hstack(
+                rx.text(
+                    "$",
+                    font_size="32px",
+                    weight="medium",
+                    color="var(--gray-9)",
+                    line_height="1",
+                    padding_top="4px",
+                ),
+                rx.text(
+                    f"{State.cost}",
+                    font_size="64px",
+                    weight="bold",
+                    letter_spacing="-0.03em",
+                    line_height="1",
+                    color=rx.cond(
+                        State.cost > BUDGET_LIMIT,
+                        APPLE_RED,
+                        APPLE_GREEN,
+                    ),
+                ),
+                align="start",
+                spacing="1",
+            ),
+            
+            # Badge budget avec style Apple
+            rx.box(
+                rx.hstack(
+                    rx.icon(
+                        rx.cond(State.cost > BUDGET_LIMIT, "circle-alert", "circle-check"),
+                        size=14,
+                        color=rx.cond(State.cost > BUDGET_LIMIT, APPLE_RED, APPLE_GREEN),
+                    ),
+                    rx.text(
+                        rx.cond(
+                            State.cost > BUDGET_LIMIT,
+                            "Budget dépassé",
+                            "Budget respecté",
+                        ),
+                        weight="bold",
+                        size="2",
+                        color=rx.cond(State.cost > BUDGET_LIMIT, APPLE_RED, APPLE_GREEN),
+                    ),
+                    spacing="2",
+                    align="center",
+                ),
+                padding="8px 16px",
+                border_radius="var(--radius-full)",
+                background=rx.cond(
                     State.cost > BUDGET_LIMIT,
-                    "var(--ruby-9)",
-                    "var(--grass-9)",
+                    f"color-mix(in srgb, {APPLE_RED} 12%, transparent)",
+                    f"color-mix(in srgb, {APPLE_GREEN} 12%, transparent)",
                 ),
             ),
             
-            # Badge budget
-            rx.badge(
-                rx.cond(
-                    State.cost > BUDGET_LIMIT,
-                    "Budget Explosé",
-                    "Budget Respecté",
-                ),
-                color_scheme=rx.cond(State.cost > BUDGET_LIMIT, "ruby", "grass"),
-                variant="solid",
-                radius="full",
-                padding_x="10px",
-            ),
+            rx.box(height="20px"),
             
-            rx.divider(margin_y="20px", width="100%"),
-            
-            # Bouton Deploy
+            # Bouton Deploy avec style Apple
             _deploy_button(),
             
-            rx.divider(margin_y="10px", width="100%", opacity="0"),
+            rx.box(height="16px"),
             
             # Zone destruction
             _destroy_zone(),
@@ -59,97 +95,150 @@ def pricing_block() -> rx.Component:
             _cost_chart(),
             
             align="center",
-            spacing="4",
+            spacing="3",
+            width="100%",
         ),
-        padding="30px",
+        padding="32px",
         background=rx.cond(
             State.cost > BUDGET_LIMIT,
-            "var(--ruby-2)",
-            "var(--green-2)",
+            f"color-mix(in srgb, {APPLE_RED} 4%, var(--gray-1))",
+            f"color-mix(in srgb, {APPLE_GREEN} 4%, var(--gray-1))",
         ),
         border="1px solid",
         border_color=rx.cond(
             State.cost > BUDGET_LIMIT,
-            "var(--ruby-6)",
-            "var(--green-6)",
+            f"color-mix(in srgb, {APPLE_RED} 20%, transparent)",
+            f"color-mix(in srgb, {APPLE_GREEN} 20%, transparent)",
         ),
-        border_radius="16px",
+        border_radius="20px",
         width="100%",
+        transition="all 0.3s ease",
+        class_name="animate-in",
     )
 
 
 def _deploy_button() -> rx.Component:
-    """Bouton de déploiement."""
+    """Bouton de déploiement avec style Apple."""
+    # Le bouton est désactivé si budget dépassé OU si le coût est 0 (panier vide ou pas de simulation)
+    is_disabled = (State.cost > BUDGET_LIMIT) | (State.cost == 0)
+    
     return rx.button(
         rx.hstack(
-            rx.icon("rocket", size=18),
-            rx.text("DÉPLOYER"),
+            rx.icon("rocket", size=16),
+            rx.text("Déployer", weight="bold"),
+            spacing="2",
+            align="center",
         ),
         on_click=State.start_deployment,
-        disabled=State.cost > BUDGET_LIMIT,
+        disabled=is_disabled,
         width="100%",
         size="3",
-        color_scheme=rx.cond(State.cost > BUDGET_LIMIT, "ruby", "grass"),
+        radius="large",
         variant="solid",
-        cursor=rx.cond(State.cost > BUDGET_LIMIT, "not-allowed", "pointer"),
-        opacity=rx.cond(State.cost > BUDGET_LIMIT, "0.5", "1"),
+        cursor=rx.cond(is_disabled, "not-allowed", "pointer"),
+        opacity=rx.cond(is_disabled, "0.5", "1"),
+        background=rx.cond(
+            State.cost > BUDGET_LIMIT,
+            "var(--gray-8)",
+            rx.cond(
+                State.cost == 0,
+                "var(--gray-8)",
+                APPLE_GREEN,
+            ),
+        ),
+        _hover={
+            "opacity": rx.cond(is_disabled, "0.5", "0.9"),
+        },
+        _active={
+            "transform": "scale(0.98)",
+        },
+        transition="all 0.15s ease",
     )
 
 
 def _destroy_zone() -> rx.Component:
-    """Zone de destruction d'infrastructure."""
+    """Zone de destruction d'infrastructure avec style Apple."""
     return rx.box(
         rx.vstack(
-            rx.text(
-                "Récupération / Nettoyage",
-                size="1",
-                weight="bold",
-                color="gray",
+            rx.hstack(
+                rx.icon("trash-2", size=14, color=APPLE_ORANGE),
+                rx.text(
+                    "Récupération / Nettoyage",
+                    size="2",
+                    weight="bold",
+                    color="var(--gray-11)",
+                ),
+                spacing="2",
+                align="center",
             ),
             rx.input(
                 placeholder="ID Infra (ex: f1305d66)",
                 on_change=State.set_destroy_id_input,
                 size="2",
-                variant="soft",
-                radius="medium",
+                variant="surface",
+                radius="large",
                 width="100%",
             ),
             rx.button(
                 rx.hstack(
-                    rx.icon("trash", size=16),
-                    rx.text("DÉTRUIRE L'INFRA"),
+                    rx.icon("trash", size=14),
+                    rx.text("Détruire l'infra", weight="medium"),
+                    spacing="2",
+                    align="center",
                 ),
                 on_click=State.start_destruction,
                 width="100%",
                 size="2",
                 variant="outline",
                 color_scheme="orange",
+                radius="large",
+                cursor="pointer",
+                _active={
+                    "transform": "scale(0.98)",
+                },
             ),
-            spacing="2",
+            spacing="3",
             width="100%",
         ),
         width="100%",
-        padding="10px",
-        border="1px dashed var(--orange-6)",
-        border_radius="8px",
-        background="var(--orange-2)",
+        padding="16px",
+        border=f"1px solid color-mix(in srgb, {APPLE_ORANGE} 30%, transparent)",
+        border_radius="14px",
+        background=f"color-mix(in srgb, {APPLE_ORANGE} 6%, transparent)",
     )
 
 
 def _cost_chart() -> rx.Component:
-    """Graphique de répartition des coûts."""
-    return rx.recharts.pie_chart(
-        rx.recharts.pie(
-            data=State.chart_data,
-            data_key="value",
-            name_key="name",
-            cx="50%",
-            cy="50%",
-            inner_radius=40,
-            outer_radius=60,
-            padding_angle=2,
+    """Graphique de répartition des coûts avec couleurs Apple."""
+    return rx.cond(
+        State.chart_data.length() > 0,
+        rx.box(
+            rx.recharts.pie_chart(
+                rx.recharts.pie(
+                    data=State.chart_data,
+                    data_key="value",
+                    name_key="name",
+                    cx="50%",
+                    cy="50%",
+                    inner_radius=35,
+                    outer_radius=55,
+                    padding_angle=3,
+                    stroke="none",
+                    label=True,
+                ),
+                rx.recharts.legend(
+                    icon_type="circle",
+                    icon_size=8,
+                    vertical_align="bottom",
+                    align="center",
+                ),
+                rx.recharts.graphing_tooltip(),
+                width="100%",
+                height=200,
+            ),
+            width="100%",
+            margin_top="16px",
+            padding_bottom="8px",
         ),
-        rx.recharts.legend(),
-        height=200,
-        width="100%",
+        rx.fragment(),
     )

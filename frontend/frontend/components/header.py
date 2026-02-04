@@ -1,41 +1,72 @@
-"""Composant Header de l'application."""
+"""Composant Header de l'application - Design Apple-like."""
 import reflex as rx
 
 
 def header() -> rx.Component:
-    """Barre de navigation principale."""
+    """Barre de navigation principale avec effet glass."""
     return rx.box(
         rx.container(
             rx.hstack(
                 # Logo et titre
                 rx.hstack(
-                    rx.icon("leaf", color=rx.color("indigo", 9), size=24),
-                    rx.heading(
-                        "EcoArch",
-                        size="6",
-                        weight="bold",
-                        letter_spacing="-0.5px",
+                    rx.box(
+                        rx.icon("leaf", color="white", size=18),
+                        background="linear-gradient(135deg, #007AFF 0%, #5856D6 100%)",
+                        padding="8px",
+                        border_radius="12px",
+                        display="flex",
+                        align_items="center",
+                        justify_content="center",
+                        box_shadow="0 4px 12px rgba(0, 122, 255, 0.3)",
                     ),
-                    rx.text(
-                        "V9 Modular",
-                        size="6",
-                        color=rx.color("slate", 10),
+                    rx.vstack(
+                        rx.heading(
+                            "EcoArch",
+                            size="5",
+                            weight="bold",
+                            letter_spacing="-0.03em",
+                            line_height="1",
+                        ),
+                        rx.text(
+                            "Cloud Architecture",
+                            size="1",
+                            color=rx.color("gray", 10),
+                            weight="medium",
+                            letter_spacing="0.02em",
+                        ),
+                        spacing="0",
+                        align="start",
                     ),
-                    spacing="2",
+                    spacing="3",
                     align="center",
                 ),
                 rx.spacer(),
-                # Toggle thème
-                rx.color_mode.button(size="2", variant="soft"),
+                # Toggle thème avec style Apple
+                rx.box(
+                    rx.color_mode.button(
+                        size="2",
+                        variant="ghost",
+                        radius="full",
+                    ),
+                    padding="4px",
+                    border_radius="var(--radius-full)",
+                    background="var(--gray-3)",
+                    _hover={
+                        "background": "var(--gray-4)",
+                    },
+                    transition="all 0.2s ease",
+                ),
                 align="center",
             ),
-            padding_y="4",
+            padding_y="12px",
+            size="3",
         ),
         position="sticky",
-        top="0",
-        z_index="50",
-        backdrop_filter="blur(16px)",
-        border_bottom=f"1px solid {rx.color('slate', 4)}",
+        top="48px",
+        z_index="40",
+        backdrop_filter="blur(20px) saturate(180%)",
+        background="var(--color-background-translucent)",
+        border_bottom="1px solid var(--gray-4)",
         width="100%",
-        background=rx.color("slate", 1, alpha=True),
+        transition="all 0.3s ease",
     )

@@ -1,76 +1,138 @@
-"""Composant Liste des ressources du panier."""
+"""Composant Liste des ressources du panier - Design Apple-like."""
 import reflex as rx
 
 from ..state import State
 
-# Mapping type -> icône
-RESOURCE_ICONS = {
-    "compute": "server",
-    "sql": "database",
-    "storage": "container",
+# Mapping type -> icône et couleur
+RESOURCE_CONFIG = {
+    "compute": {"icon": "server", "color": "#007AFF"},
+    "sql": {"icon": "database", "color": "#AF52DE"},
+    "storage": {"icon": "folder", "color": "#FF9500"},
 }
 
 
 def resource_item(item: dict, index: int) -> rx.Component:
-    """Affiche un élément de ressource dans le panier."""
+    """Affiche un élément de ressource dans le panier avec design Apple."""
     icon = rx.cond(
         item["type"] == "compute",
         "server",
-        rx.cond(item["type"] == "sql", "database", "container"),
+        rx.cond(item["type"] == "sql", "database", "folder"),
+    )
+    
+    color = rx.cond(
+        item["type"] == "compute",
+        "#007AFF",
+        rx.cond(item["type"] == "sql", "#AF52DE", "#FF9500"),
     )
     
     return rx.box(
         rx.hstack(
-            rx.icon(icon, size=18, color=rx.color("indigo", 9)),
+            rx.box(
+                rx.icon(icon, size=16, color=color),
+                background=f"color-mix(in srgb, {color} 12%, transparent)",
+                padding="10px",
+                border_radius="12px",
+                display="flex",
+                align_items="center",
+                justify_content="center",
+            ),
             rx.vstack(
                 rx.text(
                     item["display_name"],
                     weight="bold",
                     size="2",
-                    color=rx.color("slate", 12),
+                    color="var(--gray-12)",
+                    letter_spacing="-0.01em",
                 ),
                 rx.cond(
                     item["type"] == "compute",
                     rx.text(
                         f"{item['disk_size']} GB SSD",
                         size="1",
-                        color=rx.color("slate", 10),
+                        color="var(--gray-10)",
                     ),
                     rx.text(
                         "Ressource Gérée",
                         size="1",
-                        color=rx.color("slate", 10),
+                        color="var(--gray-10)",
                     ),
                 ),
                 align="start",
-                spacing="1",
+                spacing="0",
             ),
             rx.spacer(),
-            rx.button(
-                rx.icon("trash-2", size=16),
-                on_click=lambda: State.remove_resource(index),
-                variant="soft",
-                color_scheme="ruby",
-                size="1",
-                cursor="pointer",
+            rx.tooltip(
+                rx.icon_button(
+                    rx.icon("x", size=14),
+                    on_click=lambda: State.remove_resource(index),
+                    variant="ghost",
+                    size="1",
+                    radius="full",
+                    cursor="pointer",
+                    color="var(--gray-9)",
+                    _hover={
+                        "background": "var(--red-3)",
+                        "color": "#FF3B30",
+                    },
+                    transition="all 0.15s ease",
+                ),
+                content="Supprimer",
             ),
             align="center",
             width="100%",
-            padding="12px",
-            border_bottom=f"1px solid {rx.color('slate', 4)}",
+            padding="14px 16px",
         ),
         width="100%",
-        background=rx.color("slate", 2),
-        border_radius="8px",
+        background="var(--gray-1)",
+        border_radius="14px",
         margin_bottom="8px",
-        border=f"1px solid {rx.color('slate', 4)}",
+        border="1px solid var(--gray-4)",
+        transition="all 0.2s ease",
+        _hover={
+            "background": "var(--gray-2)",
+            "border_color": "var(--gray-5)",
+        },
     )
 
 
 def resource_list_display() -> rx.Component:
-    """Affiche la liste des ressources dans le panier."""
+    """Affiche la liste des ressources dans le panier avec design Apple."""
     return rx.vstack(
-        rx.heading("Estimation", size="4", weight="bold"),
+        rx.hstack(
+            rx.box(
+                rx.icon("shopping-cart", size=16, color="var(--accent-11)"),
+                background="var(--accent-3)",
+                padding="8px",
+                border_radius="10px",
+                display="flex",
+                align_items="center",
+                justify_content="center",
+            ),
+            rx.heading(
+                "Panier",
+                size="4",
+                weight="bold",
+                letter_spacing="-0.02em",
+            ),
+            rx.spacer(),
+            rx.cond(
+                State.resource_list,
+                rx.box(
+                    rx.text(
+                        f"{rx.Var.create(State.resource_list).length()} ressource(s)",
+                        size="1",
+                        weight="medium",
+                        color="var(--accent-11)",
+                    ),
+                    background="var(--accent-3)",
+                    padding="4px 10px",
+                    border_radius="var(--radius-full)",
+                ),
+            ),
+            spacing="3",
+            align="center",
+            width="100%",
+        ),
         rx.box(
             rx.vstack(
                 rx.cond(
@@ -80,23 +142,40 @@ def resource_list_display() -> rx.Component:
                         lambda item, idx: resource_item(item, idx),
                     ),
                     rx.center(
-                        rx.text(
-                            "Votre panier est vide",
-                            color="gray",
-                            font_style="italic",
+                        rx.vstack(
+                            rx.box(
+                                rx.icon("package", size=32, color="var(--gray-8)"),
+                                padding="16px",
+                                background="var(--gray-3)",
+                                border_radius="16px",
+                            ),
+                            rx.text(
+                                "Votre panier est vide",
+                                color="var(--gray-10)",
+                                weight="medium",
+                                size="2",
+                            ),
+                            rx.text(
+                                "Ajoutez des ressources pour commencer",
+                                color="var(--gray-9)",
+                                size="1",
+                            ),
+                            align="center",
+                            spacing="3",
                         ),
-                        padding="20px",
+                        padding="40px",
                         width="100%",
                     ),
                 ),
                 width="100%",
-                padding="10px",
+                padding="12px",
             ),
-            background=rx.color("slate", 2),
-            border=f"1px solid {rx.color('slate', 4)}",
-            border_radius="12px",
-            box_shadow="0 4px 6px -1px rgba(0, 0, 0, 0.1)",
+            background="var(--gray-2)",
+            border="1px solid var(--gray-4)",
+            border_radius="16px",
+            box_shadow="0 2px 8px rgba(0, 0, 0, 0.04)",
             width="100%",
         ),
         width="100%",
+        spacing="4",
     )

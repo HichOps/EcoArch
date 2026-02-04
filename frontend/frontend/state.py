@@ -22,17 +22,49 @@ except ImportError:
         DB_TIERS = []
         DB_VERSIONS = []
         STORAGE_CLASSES = []
+        SOFTWARE_STACKS = {}
+        
+        @staticmethod
+        def get_stack_names():
+            return []
+        
+        @staticmethod
+        def get_startup_script(stack):
+            return ""
     
     class Config:
         DEFAULT_BUDGET_LIMIT = 50.0
         SUPABASE_URL = ""
         SUPABASE_SERVICE_KEY = ""
         GCP_PROJECT_ID = ""
+        DEFAULT_REGION = "us-central1"
+        TERRAFORM_STATE_BUCKET = ""
+        INFRACOST_TIMEOUT = 300
     
     class RecommendationEngine:
         @staticmethod
         def generate(answers):
             return []
+    
+    class SimulationResult:
+        def __init__(self, success=False, monthly_cost=0.0, details=None, error_message=None):
+            self.success = success
+            self.monthly_cost = monthly_cost
+            self.details = details or {}
+            self.error_message = error_message
+    
+    class InfracostSimulator:
+        def __init__(self, project_id=None, timeout=None):
+            pass
+        
+        def simulate(self, resources):
+            return SimulationResult(success=False, error_message="Backend non disponible")
+        
+        def deploy(self, resources, deployment_id):
+            yield "Backend non disponible"
+        
+        def destroy(self, resources, deployment_id):
+            yield "Backend non disponible"
 
 
 class State(rx.State):
@@ -62,6 +94,7 @@ class State(rx.State):
     # ===== MODE & WIZARD =====
     is_expert_mode: bool = True
     wizard_auto_deploy: bool = False
+    wizard_include_database: bool = True  # Option pour inclure/exclure SQL
     wizard_answers: dict[str, str] = {
         "environment": "dev",
         "traffic": "low",
@@ -75,6 +108,10 @@ class State(rx.State):
     
     def set_wizard_auto_deploy(self, val: bool) -> None:
         self.wizard_auto_deploy = val
+    
+    def set_wizard_include_database(self, val: bool) -> None:
+        """Active/désactive l'inclusion de base de données dans la stack."""
+        self.wizard_include_database = val
     
     def set_wizard_env_logic(self, value: str) -> None:
         self.wizard_answers["environment"] = "prod" if "Prod" in value else "dev"
@@ -119,7 +156,14 @@ class State(rx.State):
         yield
         
         try:
-            self.resource_list = list(RecommendationEngine.generate(self.wizard_answers))
+            # Générer les ressources recommandées
+            resources = list(RecommendationEngine.generate(self.wizard_answers))
+            
+            # Filtrer les ressources SQL si l'option est désactivée
+            if not self.wizard_include_database:
+                resources = [r for r in resources if r.get("type") != "sql"]
+            
+            self.resource_list = resources
             yield from self.run_simulation()
             self.is_expert_mode = True
             yield
@@ -332,6 +376,11 @@ class State(rx.State):
         if len(self.logs) > 100:
             self.logs.pop(0)
     
+    def close_console(self) -> None:
+        """Ferme la console de déploiement."""
+        self.deploy_status = "idle"
+        self.logs = []
+    
     def _create_audit_log(
         self,
         action: str,
@@ -415,13 +464,13 @@ class State(rx.State):
         if not self.details:
             return []
         
-        # Couleurs par catégorie
+        # Couleurs Apple par catégorie
         colors = {
-            "Compute": "#00f3ff",
-            "SQL": "#bc13fe",
-            "Storage": "#ff9900",
-            "Network": "#00ff99",
-            "Autre": "#ff00ff",
+            "Compute": "#007AFF",
+            "SQL": "#AF52DE",
+            "Storage": "#FF9500",
+            "Network": "#5AC8FA",
+            "Autre": "#FF2D55",
         }
         
         data = []

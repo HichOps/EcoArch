@@ -22,76 +22,105 @@ def index() -> rx.Component:
         rx.container(
             rx.tabs.root(
                 rx.tabs.list(
-                    rx.tabs.trigger("Architect Builder", value="sim"),
-                    rx.tabs.trigger("Journal d'Audit", value="gov"),
+                    rx.tabs.trigger(
+                        rx.hstack(
+                            rx.icon("layers", size=16),
+                            rx.text("Architect Builder"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        value="sim",
+                    ),
+                    rx.tabs.trigger(
+                        rx.hstack(
+                            rx.icon("scroll-text", size=16),
+                            rx.text("Journal d'Audit"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        value="gov",
+                    ),
                     size="2",
+                    justify="center",
                 ),
                 
                 # Onglet Builder
                 rx.tabs.content(
                     _builder_tab(),
                     value="sim",
-                    padding_top="2rem",
+                    padding_top="2.5rem",
                 ),
                 
                 # Onglet Audit
                 rx.tabs.content(
                     governance_dashboard(),
                     value="gov",
-                    padding_top="2rem",
+                    padding_top="2.5rem",
                 ),
                 
                 default_value="sim",
                 width="100%",
             ),
-            size="2",
+            size="3",
+            padding_y="1rem",
         ),
-        background=rx.color("slate", 1),
+        background=rx.color("gray", 1),
         min_height="100vh",
-        font_family="Inter",
+        font_family="'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
     )
 
 
 def _builder_tab() -> rx.Component:
     """Contenu de l'onglet Builder."""
     return rx.vstack(
-        # Toggle Expert/Assistant
+        # Toggle Expert/Assistant avec design Apple
         rx.center(
-            rx.hstack(
-                rx.text(
-                    "Assistant",
-                    weight="bold",
-                    color=rx.cond(
-                        ~State.is_expert_mode,
-                        "var(--violet-9)",
-                        "var(--gray-9)",
+            rx.box(
+                rx.hstack(
+                    rx.text(
+                        "Assistant",
+                        weight="medium",
+                        size="2",
+                        color=rx.cond(
+                            ~State.is_expert_mode,
+                            "var(--accent-11)",
+                            "var(--gray-10)",
+                        ),
+                        letter_spacing="-0.01em",
                     ),
-                ),
-                rx.switch(
-                    checked=State.is_expert_mode,
-                    on_change=State.toggle_mode,
-                    color_scheme="violet",
-                    size="3",
-                    cursor="pointer",
-                ),
-                rx.text(
-                    "Expert",
-                    weight="bold",
-                    color=rx.cond(
-                        State.is_expert_mode,
-                        "var(--violet-9)",
-                        "var(--gray-9)",
+                    rx.switch(
+                        checked=State.is_expert_mode,
+                        on_change=State.toggle_mode,
+                        color_scheme="blue",
+                        size="2",
+                        cursor="pointer",
                     ),
+                    rx.text(
+                        "Expert",
+                        weight="medium",
+                        size="2",
+                        color=rx.cond(
+                            State.is_expert_mode,
+                            "var(--accent-11)",
+                            "var(--gray-10)",
+                        ),
+                        letter_spacing="-0.01em",
+                    ),
+                    spacing="3",
+                    align_items="center",
                 ),
-                spacing="4",
-                padding="10px",
+                padding="12px 24px",
+                border_radius="var(--radius-full)",
+                background="var(--gray-2)",
                 border="1px solid var(--gray-4)",
-                border_radius="full",
-                margin_bottom="20px",
-                align_items="center",
-                background="white",
+                box_shadow="0 2px 8px rgba(0, 0, 0, 0.04)",
+                transition="all 0.2s ease",
+                _hover={
+                    "box_shadow": "0 4px 12px rgba(0, 0, 0, 0.08)",
+                },
             ),
             width="100%",
+            margin_bottom="24px",
         ),
         
         # Contenu conditionnel
@@ -115,24 +144,31 @@ def _expert_mode_content() -> rx.Component:
             resource_list_display(),
             rx.cond(
                 State.error_msg != "",
-                rx.callout.root(
-                    rx.callout.icon(rx.icon("triangle-alert")),
-                    rx.callout.text(State.error_msg),
-                    color_scheme="ruby",
-                    role="alert",
-                    width="100%",
+                rx.box(
+                    rx.callout.root(
+                        rx.callout.icon(rx.icon("triangle-alert")),
+                        rx.callout.text(State.error_msg),
+                        color_scheme="red",
+                        role="alert",
+                        width="100%",
+                    ),
+                    class_name="animate-in",
                 ),
             ),
             pricing_block(),
             rx.cond(
                 State.is_loading,
-                rx.center(rx.spinner(size="3"), width="100%", padding="2rem"),
+                rx.center(
+                    rx.spinner(size="3", color="var(--accent-9)"),
+                    width="100%",
+                    padding="2rem",
+                ),
             ),
             width="100%",
             spacing="6",
         ),
         columns="2",
-        spacing="8",
+        spacing="6",
         width="100%",
     )
 
@@ -141,10 +177,15 @@ def _expert_mode_content() -> rx.Component:
 app = rx.App(
     theme=rx.theme(
         appearance="light",
-        accent_color="indigo",
+        accent_color="blue",
+        gray_color="slate",
         radius="large",
+        scaling="100%",
     ),
+    stylesheets=[
+        "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap",
+    ],
 )
 
 # Enregistrement de la page avec chargement initial des logs
-app.add_page(index, title="EcoArch V10", on_load=State.load_audit_logs)
+app.add_page(index, title="EcoArch", on_load=State.load_audit_logs)
