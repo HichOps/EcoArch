@@ -1,8 +1,11 @@
 """Parser pour les rapports Infracost JSON."""
 import json
+import logging
 import os
 from pathlib import Path
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class EcoArchParser:
@@ -16,14 +19,14 @@ class EcoArchParser:
     def _load_data(self) -> dict:
         """Charge le fichier JSON ou retourne un dict vide."""
         if not self.json_path.exists():
-            print(f"❌ Fichier introuvable: {self.json_path}")
+            logger.error("Fichier introuvable: %s", self.json_path)
             return {}
         
         try:
             with open(self.json_path, "r", encoding="utf-8") as f:
                 return json.load(f)
         except json.JSONDecodeError as e:
-            print(f"❌ JSON malformé: {e}")
+            logger.error("JSON malformé: %s", e)
             return {}
     
     @staticmethod
@@ -68,7 +71,7 @@ class EcoArchParser:
         key = os.getenv("SUPABASE_SERVICE_KEY")
         
         if not url or not key:
-            print("⏭️ Supabase non configuré, sauvegarde ignorée.")
+            logger.info("Supabase non configuré, sauvegarde ignorée.")
             return
         
         try:
@@ -90,10 +93,10 @@ class EcoArchParser:
             }
             
             supabase.table("cost_history").insert(record).execute()
-            print(f"✅ Supabase: {record['status']}")
+            logger.info("Supabase: %s", record['status'])
             
         except Exception as e:
-            print(f"❌ Erreur Supabase: {e}")
+            logger.error("Erreur Supabase: %s", e)
     
     def generate_markdown_report(self) -> str:
         """Génère un rapport Markdown pour GitLab/GitHub."""

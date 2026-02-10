@@ -28,3 +28,6 @@ frontend/frontend/__pycache__
 frontend/.web
 gcp-key.json
 gcp-key.json*
+# Deploy keys
+ecoarch-deploy-key.json
+gcp-key.json:Zone.Identifier

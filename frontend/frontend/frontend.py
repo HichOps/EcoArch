@@ -14,9 +14,108 @@ from .components.wizard import wizard_block
 
 
 def index() -> rx.Component:
-    """Page principale de l'application."""
+    """Page principale – verrouillée derrière l'écran de login."""
     return rx.box(
         rx.html(f"<style>{GLOBAL_ANIMATIONS}</style>"),
+        rx.cond(
+            State.is_authenticated,
+            _authenticated_app(),
+            _login_screen(),
+        ),
+        background=rx.color("gray", 1),
+        min_height="100vh",
+        font_family="'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+    )
+
+
+def _login_screen() -> rx.Component:
+    """Écran de connexion centré – aucune info utilisateur exposée."""
+    return rx.center(
+        rx.vstack(
+            # Logo
+            rx.center(
+                rx.box(
+                    rx.icon("shield-check", size=32, color="white"),
+                    background="linear-gradient(135deg, var(--accent-9), var(--accent-11))",
+                    padding="16px",
+                    border_radius="20px",
+                    box_shadow="0 8px 32px rgba(0, 122, 255, 0.3)",
+                ),
+                width="100%",
+            ),
+            rx.heading(
+                "EcoArch",
+                size="7",
+                weight="bold",
+                letter_spacing="-0.03em",
+                text_align="center",
+            ),
+            rx.text(
+                "Architecture Cloud Responsable",
+                size="3",
+                color="var(--gray-10)",
+                text_align="center",
+            ),
+            # Formulaire de login
+            rx.el.form(
+                rx.vstack(
+                    rx.input(
+                        placeholder="Identifiant",
+                        name="username",
+                        value=State.login_username,
+                        on_change=State.set_login_username,
+                        size="3",
+                        variant="surface",
+                        radius="large",
+                        width="100%",
+                        auto_focus=True,
+                    ),
+                    rx.cond(
+                        State.login_error != "",
+                        rx.text(
+                            State.login_error,
+                            color="var(--red-11)",
+                            size="2",
+                            text_align="center",
+                        ),
+                        rx.fragment(),
+                    ),
+                    rx.button(
+                        rx.hstack(
+                            rx.icon("log-in", size=16),
+                            rx.text("Accéder"),
+                            spacing="2",
+                            align="center",
+                        ),
+                        type="submit",
+                        size="3",
+                        width="100%",
+                        radius="large",
+                        cursor="pointer",
+                    ),
+                    spacing="4",
+                    width="100%",
+                ),
+                on_submit=State.login,
+                reset_on_submit=False,
+                width="100%",
+            ),
+            spacing="5",
+            width="340px",
+            padding="40px",
+            background="white",
+            border_radius="24px",
+            border="1px solid var(--gray-4)",
+            box_shadow="0 20px 60px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.04)",
+            align="center",
+        ),
+        min_height="100vh",
+    )
+
+
+def _authenticated_app() -> rx.Component:
+    """Application complète visible après authentification."""
+    return rx.box(
         user_topbar(),
         header(),
         rx.container(
@@ -64,9 +163,7 @@ def index() -> rx.Component:
             size="3",
             padding_y="1rem",
         ),
-        background=rx.color("gray", 1),
-        min_height="100vh",
-        font_family="'Inter', -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif",
+        on_mount=State.run_simulation,
     )
 
 

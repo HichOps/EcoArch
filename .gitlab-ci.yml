@@ -1,8 +1,11 @@
-# Pipeline Master - EcoArch FinOps Platform
+# Pipeline Master - EcoArch FinOps Platform V10
 stages:
   - plan
+  - test
   - finops
+  - deploy
 
+# ── Variables globales ──────────────────────────────────────
 variables:
   TF_ROOT: "infra"
   GCP_WIF_PROVIDER: "projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider"
@@ -13,7 +16,19 @@ variables:
   TERRAFORM_VERSION: "1.10.0"
   PYTHON_VERSION: "3.11.10-slim"
   INFRACOST_VERSION: "v0.10.43"
+  # Pip caching – accélère toutes les étapes Python
+  PIP_CACHE_DIR: "$CI_PROJECT_DIR/.cache/pip"
 
+# ── Cache global pip ────────────────────────────────────────
+cache: &pip_cache
+  key:
+    files:
+      - requirements-dev.txt
+  paths:
+    - .cache/pip
+  policy: pull-push
+
+# ── Auth GCP (réutilisable) ─────────────────────────────────
 .gcp_auth:
   id_tokens:
     GCP_ID_TOKEN:
@@ -31,12 +46,23 @@ variables:
       }" > ${CI_PROJECT_DIR}/.google_creds.json
     - export GOOGLE_APPLICATION_CREDENTIALS=${CI_PROJECT_DIR}/.google_creds.json
 
+# ── Template Python (dépendances dev) ──────────────────────
+.python_setup:
+  image: python:${PYTHON_VERSION}
+  cache: *pip_cache
+  before_script:
+    - pip install --quiet -r requirements-dev.txt
+    - export PYTHONPATH=${CI_PROJECT_DIR}
+
+# ============================================================
+#  STAGE 1 : plan (Terraform)
+# ============================================================
 terraform_plan:
   extends: .gcp_auth
   stage: plan
   image:
     name: hashicorp/terraform:${TERRAFORM_VERSION}
-    entrypoint: [""] 
+    entrypoint: [""]
   script:
     - cd $TF_ROOT
     - terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="prefix=${TF_STATE_PREFIX}"
@@ -47,11 +73,58 @@ terraform_plan:
       - plan.json
       - tfplan.binary
     expire_in: 1 hour
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
 
+# ============================================================
+#  STAGE 2 : test (Pytest + Mypy)
+# ============================================================
+unit_tests:
+  extends: .python_setup
+  stage: test
+  script:
+    - echo "── Running pytest ──"
+    - python -m pytest tests/ -v --tb=short --junitxml=report-junit.xml
+  artifacts:
+    when: always
+    reports:
+      junit: report-junit.xml
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+static_analysis:
+  extends: .python_setup
+  stage: test
+  script:
+    - echo "── Running mypy ──"
+    - mypy frontend/frontend/state.py --ignore-missing-imports --no-error-summary || true
+    - echo "── Running ruff ──"
+    - ruff check src/ tests/ --output-format=gitlab > ruff-report.json || true
+  artifacts:
+    when: always
+    paths:
+      - ruff-report.json
+    expire_in: 1 week
+  allow_failure: true
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# ============================================================
+#  STAGE 3 : finops (Infracost + Budget Gate)
+# ============================================================
 infracost_analysis:
   extends: .gcp_auth
   stage: finops
   image: python:${PYTHON_VERSION}
+  cache: *pip_cache
   before_script:
     - *gcp_setup
     - apt-get update && apt-get install -y curl unzip
@@ -63,27 +136,31 @@ infracost_analysis:
       unzip terraform.zip
       chmod +x terraform
       mv terraform /usr/local/bin/
-    # Setup Python
-    - pip install --no-cache-dir -r requirements.txt
-    - export PYTHONPATH=. 
+    # Dépendances Python (depuis la racine du projet)
+    - cd ${CI_PROJECT_DIR}
+    - pip install --quiet -r requirements.txt
+    - pip install --quiet -r requirements-dev.txt
+    # Vérification que pytest est disponible
+    - python -m pytest --version
+    - export PYTHONPATH=${CI_PROJECT_DIR}
   script:
-    - cd $TF_ROOT
-    # --- CHANGEMENT CRITIQUE ICI ---
-    # On ignore le binaire du job précédent (trop fragile).
-    # On régénère le plan localement pour garantir la compatibilité des chemins.
+    # Terraform plan (chemin absolu)
+    - cd ${CI_PROJECT_DIR}/${TF_ROOT}
     - terraform init -backend-config="bucket=${TF_STATE_BUCKET}" -backend-config="prefix=${TF_STATE_PREFIX}"
     - terraform plan -out=finops_local.binary
-    
-    # Analyse du plan fraîchement créé
-    - infracost breakdown --path finops_local.binary --format json --out-file ../infracost-report.json
-    # -------------------------------
-    
-    - cd ..
-    - pytest tests/
+    # Analyse Infracost (sortie en chemin absolu)
+    - infracost breakdown --path finops_local.binary --format json --out-file ${CI_PROJECT_DIR}/infracost-report.json
+    # Retour à la racine (chemin absolu, plus de cd ..)
+    - cd ${CI_PROJECT_DIR}
+    # Rapport & Budget Gate
     - python src/parser.py > report.md
     - python src/gitlab_comment.py
     - python src/budget_gate.py
   rules:
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: never
     - if: $CI_PIPELINE_SOURCE == "merge_request_event"
     - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
   artifacts:
@@ -91,3 +168,70 @@ infracost_analysis:
       - infracost-report.json
       - report.md
     expire_in: 1 week
+
+# ============================================================
+#  STAGE 4 : deploy (Terraform Apply via Trigger)
+# ============================================================
+# Ce stage est déclenché par l'application EcoArch via l'API
+# GitLab Trigger. Il reçoit les variables :
+#   - TF_VAR_architecture_json : panier sérialisé en JSON
+#   - ECOARCH_DEPLOYMENT_ID    : identifiant unique du déploiement
+#   - ECOARCH_ACTION           : "apply" ou "destroy"
+
+terraform_deploy:
+  stage: deploy
+  image:
+    name: hashicorp/terraform:${TERRAFORM_VERSION}
+    entrypoint: [""]
+  variables:
+    # GitLab HTTP Backend pour stocker le Terraform State
+    TF_HTTP_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/ecoarch-infra"
+    TF_HTTP_LOCK_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/ecoarch-infra/lock"
+    TF_HTTP_UNLOCK_ADDRESS: "${CI_API_V4_URL}/projects/${CI_PROJECT_ID}/terraform/state/ecoarch-infra/lock"
+    TF_HTTP_USERNAME: "gitlab-ci-token"
+    TF_HTTP_PASSWORD: "${CI_JOB_TOKEN}"
+    TF_HTTP_LOCK_METHOD: "POST"
+    TF_HTTP_UNLOCK_METHOD: "DELETE"
+    TF_HTTP_RETRY_WAIT_MIN: "5"
+  script:
+    - echo "═══════════════════════════════════════════════"
+    - echo "  EcoArch Deploy – ID ${ECOARCH_DEPLOYMENT_ID:-manual}"
+    - echo "  Action  ${ECOARCH_ACTION:-apply}"
+    - echo "═══════════════════════════════════════════════"
+    - cd ${CI_PROJECT_DIR}/${TF_ROOT}
+    #
+    # Initialisation avec GitLab HTTP Backend (reconfigure pour
+    # ignorer le backend gcs déclaré dans main.tf)
+    #
+    - |
+      terraform init -reconfigure \
+        -backend-config="address=${TF_HTTP_ADDRESS}" \
+        -backend-config="lock_address=${TF_HTTP_LOCK_ADDRESS}" \
+        -backend-config="unlock_address=${TF_HTTP_UNLOCK_ADDRESS}" \
+        -backend-config="username=${TF_HTTP_USERNAME}" \
+        -backend-config="password=${TF_HTTP_PASSWORD}" \
+        -backend-config="lock_method=POST" \
+        -backend-config="unlock_method=DELETE" \
+        -backend-config="retry_wait_min=5"
+    #
+    # Exécution selon l'action demandée
+    #
+    - |
+      if [ "${ECOARCH_ACTION}" = "destroy" ]; then
+        echo "🔥 Mode destruction"
+        terraform destroy -auto-approve -input=false
+      else
+        echo "🚀 Mode déploiement"
+        terraform plan -input=false -out=deploy.tfplan
+        terraform apply -auto-approve -input=false deploy.tfplan
+      fi
+    - echo "✅ Terraform ${ECOARCH_ACTION:-apply} terminé avec succès"
+  rules:
+    # Déclenché uniquement via l'API Trigger (depuis l'app EcoArch)
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+    # Ou manuellement depuis l'UI GitLab
+    - if: $CI_PIPELINE_SOURCE == "web"
+      when: manual
+  environment:
+    name: ${ECOARCH_ACTION:-deploy}/$ECOARCH_DEPLOYMENT_ID
+    action: start

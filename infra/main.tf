@@ -1,10 +1,10 @@
 # infra/main.tf
 
 terraform {
-  backend "gcs" {
-    bucket = "" # Injecté par GitLab
-    prefix = "" # Injecté par GitLab
-  }
+  # Backend HTTP : le Terraform State est stocké dans GitLab.
+  # Les paramètres (address, lock_address, etc.) sont injectés
+  # via -backend-config dans le pipeline CI/CD.
+  backend "http" {}
 }
 
 locals {

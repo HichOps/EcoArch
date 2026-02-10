@@ -1,0 +1,17 @@
+# --- Dev & Test dependencies ---
+# Install: pip install -r requirements-dev.txt
+-r requirements.txt
+
+# Testing
+pytest
+pytest-mock
+pytest-cov
+
+# Linting & Formatting
+ruff
+black
+mypy
+
+# Type stubs
+types-requests
+pandas-stubs

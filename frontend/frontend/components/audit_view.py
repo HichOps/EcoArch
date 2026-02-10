@@ -46,6 +46,24 @@ def audit_row(row: dict) -> rx.Component:
             rx.text(row["formatted_cost"], font_family="monospace", weight="bold"),
         ),
         rx.table.cell(status_badge(row["status"])),
+        rx.table.cell(
+            rx.cond(
+                row["pipeline_url"] != "",
+                rx.link(
+                    rx.hstack(
+                        rx.icon("external-link", size=14),
+                        rx.text("Pipeline", size="1"),
+                        spacing="1",
+                        align="center",
+                    ),
+                    href=row["pipeline_url"],
+                    is_external=True,
+                    color="#007AFF",
+                    font_size="12px",
+                ),
+                rx.text("–", color="gray", font_size="12px"),
+            ),
+        ),
     )
 
 
@@ -91,6 +109,7 @@ def audit_log_table() -> rx.Component:
                         rx.table.column_header_cell("Ressources"),
                         rx.table.column_header_cell("Coût"),
                         rx.table.column_header_cell("Statut"),
+                        rx.table.column_header_cell("Pipeline"),
                     ),
                 ),
                 rx.table.body(

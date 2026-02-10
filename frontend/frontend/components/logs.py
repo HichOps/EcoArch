@@ -9,13 +9,30 @@ TERMINAL_BG = "#1D1D1F"
 
 
 def log_line(line: str) -> rx.Component:
-    """Affiche une ligne de log avec style terminal Apple."""
-    return rx.text(
-        line,
-        font_family="'SF Mono', 'Fira Code', 'Menlo', monospace",
-        font_size="13px",
-        color=TERMINAL_GREEN,
-        line_height="1.6",
+    """Affiche une ligne de log avec style terminal Apple.
+    
+    Les lignes commençant par 🔗 sont rendues comme liens cliquables.
+    """
+    return rx.cond(
+        line.contains("🔗 https://"),
+        rx.link(
+            line,
+            href=line.split("🔗 ")[1],
+            is_external=True,
+            font_family="'SF Mono', 'Fira Code', 'Menlo', monospace",
+            font_size="13px",
+            color="#5AC8FA",
+            line_height="1.6",
+            text_decoration="underline",
+            _hover={"color": "#70D0FF"},
+        ),
+        rx.text(
+            line,
+            font_family="'SF Mono', 'Fira Code', 'Menlo', monospace",
+            font_size="13px",
+            color=TERMINAL_GREEN,
+            line_height="1.6",
+        ),
     )
 
 
@@ -58,7 +75,11 @@ def deploy_console() -> rx.Component:
                             rx.cond(
                                 State.deploy_status == "success",
                                 rx.icon("circle-check", color=TERMINAL_GREEN, size=14),
-                                rx.icon("circle-alert", color="#FF453A", size=14),
+                                rx.cond(
+                                    State.deploy_status == "pipeline_sent",
+                                    rx.icon("rocket", color="#5AC8FA", size=14),
+                                    rx.icon("circle-alert", color="#FF453A", size=14),
+                                ),
                             ),
                         ),
                         rx.text(
@@ -68,7 +89,11 @@ def deploy_console() -> rx.Component:
                                 rx.cond(
                                     State.deploy_status == "success",
                                     "Terminé avec succès",
-                                    "Erreur",
+                                    rx.cond(
+                                        State.deploy_status == "pipeline_sent",
+                                        "Pipeline GitLab déclenché",
+                                        "Erreur",
+                                    ),
                                 ),
                             ),
                             weight="medium",

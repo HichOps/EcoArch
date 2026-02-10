@@ -1,42 +1,37 @@
+# ═══════════════════════════════════════════════════════════════
+# docker-compose.yml – Stack de développement local EcoArch
+# Usage : docker compose up -d
+# ═══════════════════════════════════════════════════════════════
 services:
   ecoarch:
     build: .
-    container_name: ecoarch_v9_container
-    # On redémarre s'il plante, sauf si on l'arrête manuellement
+    container_name: ecoarch_dev
     restart: unless-stopped
     ports:
-      - "3000:3000" # Frontend
-      - "8000:8000" # Backend (WebSocket/API)
+      - "3000:3000"   # Frontend Reflex (dev)
+      - "8000:8000"   # Backend FastAPI / WebSocket
     env_file:
       - .env
     environment:
-      # URL interne pour que le backend parle à Redis (utilise le nom du service 'redis')
-      - REDIS_URL=redis://redis:6379
-      # Variable standard Google pour l'auto-authentification
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json 
+      - REDIS_URL=redis://redis:6379/0
+      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json
       - GCP_PROJECT_ID=ecoarch-mvp-1768828854
+      - API_URL=http://localhost:8000
     volumes:
-      # On monte le fichier de clé dans le conteneur en lecture seule (:ro)
       - ./gcp-key.json:/app/gcp-key.json:ro
-      - .:/app
     depends_on:
       redis:
-        # On attend VRAIMENT que Redis soit prêt avant de lancer l'app
         condition: service_healthy
-    # Connecte le service au réseau défini en bas
     networks:
       - ecoarch_net
 
   redis:
-    image: redis:alpine
+    image: redis:7-alpine
     container_name: ecoarch_redis
     restart: always
-    # Commande pour activer la persistance sur disque (AOF)
     command: redis-server --appendonly yes
-    # Volume pour ne pas perdre les sessions au redémarrage
     volumes:
       - redis_data:/data
-    # Vérification de santé pour le depends_on
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -45,11 +40,9 @@ services:
     networks:
       - ecoarch_net
 
-# Définition des volumes persistants
 volumes:
   redis_data:
 
-# Définition d'un réseau dédié (Bonne pratique pour isoler les conteneurs)
 networks:
   ecoarch_net:
     driver: bridge

@@ -1,14 +1,12 @@
-# --- Cœur de l'application ---
+# --- Core ---
 reflex>=0.6.0
 python-dotenv
 
 # --- Backend & Data ---
 supabase
-google-cloud-storage
+google-cloud-secret-manager
+requests
 
-# --- Manipulation de données ---
-pandas
-numpy
-
-# --- Optionnel ---
-plotly
+# --- Async Task Queue ---
+celery[redis]>=5.3.0
+redis>=5.0.0

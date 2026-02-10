@@ -119,8 +119,8 @@ def pricing_block() -> rx.Component:
 
 def _deploy_button() -> rx.Component:
     """Bouton de déploiement avec style Apple."""
-    # Le bouton est désactivé si budget dépassé OU si le coût est 0 (panier vide ou pas de simulation)
-    is_disabled = (State.cost > BUDGET_LIMIT) | (State.cost == 0)
+    # Désactivé si: non authentifié OU budget dépassé OU coût nul (panier vide)
+    is_disabled = (~State.is_authenticated) | (State.cost > BUDGET_LIMIT) | (State.cost == 0)
     
     return rx.button(
         rx.hstack(

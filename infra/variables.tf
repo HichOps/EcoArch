@@ -37,5 +37,8 @@ variable "boot_disk_size" {
   default = 50
 }
 
-# Les autres variables (instance_name, machine_type, zone) 
-# doivent aussi être présentes ici.
+variable "architecture_json" {
+  description = "JSON sérialisé du panier EcoArch (injecté via TF_VAR_architecture_json)"
+  type        = string
+  default     = "[]"
+}

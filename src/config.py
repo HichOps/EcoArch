@@ -1,8 +1,13 @@
 """Configuration centralisée de l'application EcoArch."""
+import logging
 import os
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv(override=False)  # Les variables Secret Manager / Cloud Run ont priorité
+
+logger = logging.getLogger(__name__)
+
+# ── Helpers ───────────────────────────────────────────────────────
 
 
 def _get_env(key: str, default: str = "") -> str:
@@ -26,6 +31,49 @@ def _get_env_int(key: str, default: int) -> int:
         return default
 
 
+# ── GCP Secret Manager ───────────────────────────────────────────
+
+def _is_running_in_gcp() -> bool:
+    """Détecte si l'application tourne dans un environnement GCP (Cloud Run, GCE, GKE)."""
+    return bool(
+        os.getenv("K_SERVICE")                    # Cloud Run
+        or os.getenv("GOOGLE_CLOUD_PROJECT")       # GCE / GKE
+        or os.getenv("GCLOUD_PROJECT")             # Legacy
+    )
+
+
+def _get_secret(secret_id: str, project_id: str | None = None) -> str | None:
+    """Récupère un secret depuis GCP Secret Manager.
+
+    Retourne None si :
+    - On n'est pas dans GCP
+    - Le secret n'existe pas
+    - La librairie n'est pas installée
+    """
+    if not _is_running_in_gcp():
+        return None
+
+    try:
+        from google.cloud import secretmanager
+
+        client = secretmanager.SecretManagerServiceClient()
+        gcp_project = project_id or os.getenv("GCP_PROJECT_ID", "")
+        name = f"projects/{gcp_project}/secrets/{secret_id}/versions/latest"
+        response = client.access_secret_version(request={"name": name})
+        return response.payload.data.decode("UTF-8")
+    except Exception as exc:
+        logger.warning("Secret Manager: impossible de lire '%s' – %s", secret_id, exc)
+        return None
+
+
+def _get_secret_or_env(secret_id: str, env_key: str, default: str = "") -> str:
+    """Essaie Secret Manager d'abord, sinon variable d'environnement."""
+    value = _get_secret(secret_id)
+    if value:
+        return value
+    return os.getenv(env_key, default)
+
+
 class Config:
     """Configuration globale de l'application."""
     
@@ -38,14 +86,30 @@ class Config:
     # Budget
     DEFAULT_BUDGET_LIMIT = _get_env_float("ECOARCH_BUDGET_LIMIT", 50.0)
     
-    # Infracost
-    INFRACOST_API_KEY = _get_env("INFRACOST_API_KEY")
+    # Infracost (clé sensible → Secret Manager en prod)
+    INFRACOST_API_KEY = _get_secret_or_env("infracost-api-key", "INFRACOST_API_KEY")
     INFRACOST_TIMEOUT = _get_env_int("INFRACOST_TIMEOUT", 30)
     TEMP_FILE_PREFIX = "ecoarch_sim_"
     
-    # Supabase
-    SUPABASE_URL = _get_env("SUPABASE_URL")
-    SUPABASE_SERVICE_KEY = _get_env("SUPABASE_SERVICE_KEY")
+    # Supabase (secrets sensibles → Secret Manager en prod)
+    SUPABASE_URL = _get_secret_or_env("supabase-url", "SUPABASE_URL")
+    SUPABASE_SERVICE_KEY = _get_secret_or_env("supabase-service-key", "SUPABASE_SERVICE_KEY")
+
+    # GitLab CI/CD (secrets sensibles → Secret Manager en prod)
+    GITLAB_TRIGGER_TOKEN = _get_secret_or_env(
+        "GITLAB_TRIGGER_TOKEN", "GITLAB_TRIGGER_TOKEN"
+    )
+    GITLAB_PROJECT_ID = _get_secret_or_env(
+        "GITLAB_PROJECT_ID", "GITLAB_PROJECT_ID", default="77811562"
+    )
+    GITLAB_REF = _get_env("GITLAB_REF", "main")
+    GITLAB_PIPELINE_BASE_URL = (
+        f"https://gitlab.com/api/v4/projects/{GITLAB_PROJECT_ID}/trigger/pipeline"
+    )
+    GITLAB_PROJECT_URL = "https://gitlab.com/hichops/ecoarch"
+
+    # Redis / Celery (legacy – non utilisé sur Cloud Run)
+    REDIS_URL = _get_env("REDIS_URL", "redis://localhost:6379/0")
 
 class GCPConfig:
     """Options disponibles pour les ressources GCP."""
@@ -78,6 +142,7 @@ class GCPConfig:
     
     # Limites de stockage
     MIN_STORAGE_GB = 10
+    MAX_STORAGE_GB = 64000
     
     # Software Stacks - Logiciels pré-installés
     SOFTWARE_STACKS: dict[str, dict[str, str]] = {
@@ -172,8 +237,9 @@ echo "Docker installed successfully" > /var/log/startup-script.log
             "script": """#!/bin/bash
 set -e
 apt-get update && apt-get upgrade -y
-debconf-set-selections <<< 'mysql-server mysql-server/root_password password root'
-debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password root'
+MYSQL_ROOT_PWD=$(gcloud secrets versions access latest --secret=mysql-root-password --project="$GCP_PROJECT_ID" 2>/dev/null || echo "changeme-$(head -c 16 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9')")
+debconf-set-selections <<< "mysql-server mysql-server/root_password password $MYSQL_ROOT_PWD"
+debconf-set-selections <<< "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PWD"
 apt-get install -y apache2 mysql-server php libapache2-mod-php php-mysql
 systemctl enable apache2 mysql
 systemctl start apache2 mysql
@@ -186,8 +252,9 @@ echo "LAMP stack installed successfully" > /var/log/startup-script.log
             "script": """#!/bin/bash
 set -e
 apt-get update && apt-get upgrade -y
-debconf-set-selections <<< 'mysql-server mysql-server/root_password password root'
-debconf-set-selections <<< 'mysql-server mysql-server/root_password_again password root'
+MYSQL_ROOT_PWD=$(gcloud secrets versions access latest --secret=mysql-root-password --project="$GCP_PROJECT_ID" 2>/dev/null || echo "changeme-$(head -c 16 /dev/urandom | base64 | tr -dc 'a-zA-Z0-9')")
+debconf-set-selections <<< "mysql-server mysql-server/root_password password $MYSQL_ROOT_PWD"
+debconf-set-selections <<< "mysql-server mysql-server/root_password_again password $MYSQL_ROOT_PWD"
 apt-get install -y nginx mysql-server php-fpm php-mysql
 systemctl enable nginx mysql php*-fpm
 systemctl start nginx mysql php*-fpm
@@ -236,4 +303,3 @@ echo "Monitoring stack installed successfully" > /var/log/startup-script.log
     def get_startup_script(cls, stack_id: str) -> str:
         """Retourne le script de démarrage pour une stack donnée."""
         return cls.SOFTWARE_STACKS.get(stack_id, {}).get("script", "")
-    MAX_STORAGE_GB = 64000

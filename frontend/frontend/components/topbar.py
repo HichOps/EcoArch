@@ -29,11 +29,11 @@ def user_topbar() -> rx.Component:
 
 
 def _user_selector() -> rx.Component:
-    """Sélecteur d'utilisateur avec style Apple."""
+    """Affichage de l'utilisateur connecté avec badge de rôle et bouton déconnexion."""
     return rx.hstack(
         rx.box(
-            rx.icon("user", size=14, color="var(--accent-11)"),
-            background="var(--accent-3)",
+            rx.icon("user-check", size=14, color="#34C759"),
+            background="color-mix(in srgb, #34C759 15%, transparent)",
             padding="6px",
             border_radius="8px",
             display="flex",
@@ -41,20 +41,34 @@ def _user_selector() -> rx.Component:
             justify_content="center",
         ),
         rx.text(
-            "Utilisateur",
+            State.current_user,
             weight="medium",
             size="2",
-            color="var(--gray-11)",
+            color="var(--gray-12)",
             letter_spacing="-0.01em",
         ),
-        rx.select(
-            State.users_list,
-            value=State.current_user,
-            on_change=State.set_user,
-            size="2",
-            variant="surface",
-            radius="large",
-            width="180px",
+        rx.badge(
+            State.user_role,
+            variant="soft",
+            size="1",
+            color_scheme="green",
+        ),
+        rx.tooltip(
+            rx.icon_button(
+                rx.icon("log-out", size=14),
+                on_click=State.logout,
+                size="1",
+                variant="ghost",
+                radius="full",
+                cursor="pointer",
+                color="var(--gray-10)",
+                _hover={
+                    "background": "var(--red-3)",
+                    "color": "var(--red-11)",
+                },
+                transition="all 0.2s ease",
+            ),
+            content="Déconnexion",
         ),
         align="center",
         spacing="3",
