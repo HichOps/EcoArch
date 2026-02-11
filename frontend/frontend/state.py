@@ -2,13 +2,15 @@
 
 Ce module ne contient QUE l'état UI et l'orchestration des événements Reflex.
 Toute logique métier est déléguée aux services :
-- Authentification → src.services.auth_service.AuthService
-- Client Supabase singleton → Config.get_supabase_client()
-- Simulation / Déploiement → src.simulation, src.deployer
+
+- Authentification → ``src.services.auth_service.AuthService``
+- Audit logs → ``src.services.audit_service.AuditService``
+- Recommandation → ``src.recommendation.RecommendationEngine``
+- Simulation / Déploiement → ``src.simulation``, ``src.deployer``
+- Validation inputs → ``src.security.InputSanitizer``
 """
 import asyncio
 import logging
-import os
 import sys
 import uuid
 from pathlib import Path
@@ -28,6 +30,8 @@ try:
     from src.simulation import InfracostSimulator
     from src.recommendation import RecommendationEngine
     from src.services.auth_service import AuthService, AuthResult
+    from src.services.audit_service import AuditService
+    from src.security import InputSanitizer
     from src.deployer import (
         trigger_deployment,
         trigger_destruction,
@@ -42,7 +46,10 @@ except ImportError:
         RecommendationEngineStub as RecommendationEngine,
         AuthServiceStub as AuthService,  # type: ignore[assignment]
         AuthResultStub as AuthResult,  # type: ignore[assignment]
+        AuditServiceStub as AuditService,  # type: ignore[assignment]
+        InputSanitizerStub as InputSanitizer,  # type: ignore[assignment]
     )
+
     trigger_deployment = None
     trigger_destruction = None
     check_pipeline_status = None  # type: ignore[assignment]
@@ -134,13 +141,16 @@ class State(rx.State):
         return True
 
     def set_destroy_id_input(self, value: str) -> None:
+        """Met à jour l'ID de déploiement cible pour la destruction."""
         self.destroy_id_input = value.strip()
 
     def generate_new_id(self):
+        """Génère un nouvel identifiant de déploiement (UUID court)."""
         self.deployment_id = str(uuid.uuid4())[:8]
         return rx.toast.info(f"Nouvelle Session: {self.deployment_id}")
 
     def set_deployment_id(self, value: str) -> None:
+        """Met à jour l'identifiant de déploiement courant."""
         self.deployment_id = value.strip()
 
     # ===== MODE & WIZARD =====
@@ -156,9 +166,11 @@ class State(rx.State):
     }
 
     def toggle_mode(self, val: bool) -> None:
+        """Bascule entre le mode Expert et le mode Wizard."""
         self.is_expert_mode = val
 
     def set_wizard_auto_deploy(self, val: bool) -> None:
+        """Active/désactive le déploiement automatique après le Wizard."""
         self.wizard_auto_deploy = val
 
     def set_wizard_include_database(self, val: bool) -> None:
@@ -166,9 +178,11 @@ class State(rx.State):
         self.wizard_include_database = val
 
     def set_wizard_env_logic(self, value: str) -> None:
+        """Traduit le choix UI d'environnement en valeur métier (dev/prod)."""
         self.wizard_answers["environment"] = "prod" if "Prod" in value else "dev"
 
     def set_wizard_workload_logic(self, value: str) -> None:
+        """Traduit le choix UI de workload en valeur métier (cpu/memory/general)."""
         if "Traitement" in value:
             self.wizard_answers["workload"] = "cpu"
         elif "Cache" in value:
@@ -177,9 +191,11 @@ class State(rx.State):
             self.wizard_answers["workload"] = "general"
 
     def set_wizard_criticality_logic(self, value: str) -> None:
+        """Traduit le choix UI de criticité en valeur métier (high/low)."""
         self.wizard_answers["criticality"] = "high" if "critique" in value else "low"
 
     def set_wizard_traffic_logic(self, value: str) -> None:
+        """Traduit le choix UI de trafic en valeur métier (low/medium/high)."""
         if "Viral" in value:
             self.wizard_answers["traffic"] = "high"
         elif "Croissance" in value:
@@ -208,7 +224,9 @@ class State(rx.State):
         yield
 
         try:
-            resources = list(RecommendationEngine.generate(self.wizard_answers))
+            # Sécurisation des entrées Wizard
+            safe_answers = InputSanitizer.validate_wizard_answers(self.wizard_answers)
+            resources = list(RecommendationEngine.generate(safe_answers))
 
             if not self.wizard_include_database:
                 resources = [r for r in resources if r.get("type") != "sql"]
@@ -245,21 +263,27 @@ class State(rx.State):
     software_stacks: list[str] = GCPConfig.get_stack_names()
 
     def set_service(self, value: str) -> None:
+        """Sélectionne le type de service GCP (compute/sql/storage)."""
         self.selected_service = value
 
     def set_machine(self, value: str) -> None:
+        """Sélectionne le type de machine Compute Engine."""
         self.selected_machine = value
 
     def set_storage(self, value: list[float]) -> None:
+        """Met à jour la taille de disque (slider)."""
         self.selected_storage = int(value[0])
 
     def set_db_tier(self, value: str) -> None:
+        """Sélectionne le tier Cloud SQL."""
         self.selected_db_tier = value
 
     def set_db_version(self, value: str) -> None:
+        """Sélectionne la version de base de données."""
         self.selected_db_version = value
 
     def set_storage_class(self, value: str) -> None:
+        """Sélectionne la classe de stockage Cloud Storage."""
         self.selected_storage_class = value
 
     def set_software_stack(self, value: str) -> None:
@@ -362,10 +386,8 @@ class State(rx.State):
         Retourne False sur Cloud Run (K_SERVICE est défini) car
         Terraform y est installé mais ne peut pas init (pas de backend).
         """
-        import os
-        if os.environ.get("K_SERVICE"):
-            logger.info("Cloud Run détecté (K_SERVICE=%s), Terraform sync désactivé",
-                        os.environ.get("K_SERVICE"))
+        if Config.IS_CLOUD_RUN:
+            logger.info("Cloud Run détecté, Terraform sync désactivé")
             return False
 
         import shutil
@@ -400,7 +422,13 @@ class State(rx.State):
         self.logs = [f"--- DEPLOY: {target_id} ---", "📨 Envoi vers GitLab CI/CD…"]
         yield
 
-        audit_id = self._create_audit_log("DEPLOY", target_id)
+        audit_id = AuditService.create_log(
+            user=self.current_user,
+            action="DEPLOY",
+            target_id=target_id,
+            resources_summary=", ".join(r.get("display_name", "") for r in self.resource_list),
+            cost=self.cost
+        )
         yield
 
         # ── Tentative GitLab CI/CD ──
@@ -417,7 +445,7 @@ class State(rx.State):
                     self.logs.append(f"🚀 Pipeline GitLab déclenché (ID: {result.pipeline_id})")
                     self.logs.append(f"🔗 {self.pipeline_url}")
                     self.logs.append("✅ Déploiement initié sur GitLab")
-                    self._update_audit_log(audit_id, "PIPELINE_SENT")
+                    AuditService.update_log(audit_id, "PIPELINE_SENT", self.pipeline_url)
                     self.is_deploying = False
                     self.load_audit_logs()
                     yield
@@ -456,13 +484,13 @@ class State(rx.State):
             self.deploy_status = "success"
             self.logs.append("✅ SUCCESS")
             yield
-            self._update_audit_log(None, "SUCCESS")
+            AuditService.update_log(None, "SUCCESS")
 
         except Exception as e:
             self.deploy_status = "error"
             self.logs.append(f"❌ ERROR: {e}")
             logger.error("Deploy sync failed: %s", e, exc_info=True)
-            self._update_audit_log(None, "ERROR")
+            AuditService.update_log(None, "ERROR")
 
         finally:
             self.is_deploying = False
@@ -536,7 +564,13 @@ class State(rx.State):
         self.logs = [f"--- DESTROY: {target_id} ---", "📨 Envoi vers GitLab CI/CD…"]
         yield
 
-        audit_id = self._create_audit_log("DESTROY", target_id, cost=0.0)
+        audit_id = AuditService.create_log(
+            user=self.current_user,
+            action="DESTROY",
+            target_id=target_id,
+            resources_summary=", ".join(r.get("display_name", "") for r in self.resource_list),
+            cost=0.0
+        )
         yield
 
         # ── Tentative GitLab CI/CD ──
@@ -552,7 +586,7 @@ class State(rx.State):
                     self.logs.append(f"🔥 Pipeline destruction déclenché (ID: {result.pipeline_id})")
                     self.logs.append(f"🔗 {self.pipeline_url}")
                     self.logs.append("✅ Destruction initiée sur GitLab")
-                    self._update_audit_log(audit_id, "PIPELINE_SENT")
+                    AuditService.update_log(audit_id, "PIPELINE_SENT", self.pipeline_url)
                     self.is_deploying = False
                     self.load_audit_logs()
                     yield
@@ -660,7 +694,7 @@ class State(rx.State):
                     self.deploy_status = "success"
                     self.logs.append("✅ SUCCESS (mode démo)")
                     if self.demo_audit_id is not None:
-                        self._update_audit_log(self.demo_audit_id, "SUCCESS")
+                        AuditService.update_log(self.demo_audit_id, "SUCCESS")
                     self.is_deploying = False
                     self.load_audit_logs()
                     self.demo_script = []
@@ -687,58 +721,6 @@ class State(rx.State):
         """Ferme la console de déploiement."""
         self.deploy_status = "idle"
         self.logs = []
-
-    def _create_audit_log(
-        self,
-        action: str,
-        target_id: str,
-        cost: float | None = None,
-    ) -> int | None:
-        """Crée un log d'audit dans Supabase."""
-        sb = Config.get_supabase_client()
-        if not sb:
-            return None
-
-        try:
-            summary = f"[{target_id}] " + ", ".join(
-                r.get("display_name", "") for r in self.resource_list
-            )
-
-            row = {
-                "user": self.current_user,
-                "action": action,
-                "resources_summary": summary,
-                "total_cost": cost if cost is not None else self.cost,
-                "status": "PENDING",
-            }
-
-            # Ajouter le lien pipeline si disponible
-            if self.pipeline_url:
-                row["pipeline_url"] = self.pipeline_url
-
-            res = sb.table("audit_logs").insert(row).execute()
-
-            return res.data[0]["id"] if res.data else None
-        except Exception:
-            logger.warning("Échec création audit log pour %s/%s", action, target_id, exc_info=True)
-            return None
-
-    def _update_audit_log(self, audit_id: int | None, status: str) -> None:
-        """Met à jour le statut d'un log d'audit."""
-        if not audit_id:
-            return
-
-        sb = Config.get_supabase_client()
-        if not sb:
-            return
-
-        try:
-            update_data: dict = {"status": status}
-            if self.pipeline_url:
-                update_data["pipeline_url"] = self.pipeline_url
-            sb.table("audit_logs").update(update_data).eq("id", audit_id).execute()
-        except Exception:
-            logger.warning("Échec mise à jour audit log #%s → %s", audit_id, status, exc_info=True)
 
     # ===== AUDIT LOGS =====
     audit_logs: list[dict] = []
@@ -774,48 +756,11 @@ class State(rx.State):
         pipeline (SUCCESS / FAILED / CANCELLED / RUNNING) et met à jour
         Supabase en conséquence.
         """
-        sb = Config.get_supabase_client()
-        if not sb:
-            return
-
         try:
-            res = sb.table("audit_logs").select("*").order(
-                "created_at", desc=True
-            ).limit(50).execute()
-
-            rows = res.data or []
-            any_status_changed = False
-
-            # ── Polling GitLab pour les pipelines en attente ──
-            if check_pipeline_status is not None and extract_pipeline_id is not None:
-                for row in rows:
-                    status = row.get("status", "")
-                    if status not in ("PENDING", "PIPELINE_SENT"):
-                        continue
-
-                    p_url = row.get("pipeline_url", "")
-                    p_id = extract_pipeline_id(p_url)
-                    if not p_id:
-                        continue
-
-                    new_status = check_pipeline_status(p_id)
-                    if new_status and new_status != status:
-                        any_status_changed = True
-                        # Met à jour Supabase
-                        try:
-                            sb.table("audit_logs").update(
-                                {"status": new_status}
-                            ).eq("id", row["id"]).execute()
-                            row["status"] = new_status
-                        except Exception:
-                            logger.warning(
-                                "Échec mise à jour audit #%s → %s",
-                                row.get("id"),
-                                new_status,
-                                exc_info=True,
-                            )
-
-            # Backoff exponentiel GreenOps
+            # 1. Sync GitLab status
+            any_status_changed = AuditService.sync_pipeline_statuses(self.audit_logs)
+            
+            # 2. Backoff exponentiel GreenOps
             if any_status_changed:
                 self.audit_no_change_count = 0
                 self.audit_poll_interval_s = _AUDIT_POLL_INTERVAL_MIN_S
@@ -835,6 +780,8 @@ class State(rx.State):
                     self.audit_poll_interval_s = new_interval
                     self.audit_no_change_count = 0
 
+            # 3. Reload fresh logs
+            rows = AuditService.fetch_recent_logs(limit=50)
             self.audit_logs = [
                 self._format_audit_row(row) for row in rows
             ]

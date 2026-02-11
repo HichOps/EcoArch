@@ -34,7 +34,6 @@ class ConfigStub:
     DEFAULT_REGION: str = "us-central1"
     TERRAFORM_STATE_BUCKET: str = ""
     INFRACOST_TIMEOUT: int = 300
-    REDIS_URL: str = ""
     AUTH_SECRET_KEY: str = ""
     AUTH_ENABLED: bool = False
     GITLAB_TRIGGER_TOKEN: str = ""
@@ -74,6 +73,38 @@ class AuthServiceStub:
     @staticmethod
     def verify_token(username: str, token: str) -> bool:
         return True
+
+
+class AuditServiceStub:
+    """Stub pour src.services.audit_service.AuditService."""
+
+    @staticmethod
+    def create_log(*args: Any, **kwargs: Any) -> None:
+        """No-op en mode stub."""
+        return None
+
+    @staticmethod
+    def update_log(*args: Any, **kwargs: Any) -> None:
+        """No-op en mode stub."""
+
+    @staticmethod
+    def fetch_recent_logs(*args: Any, **kwargs: Any) -> list[dict[str, Any]]:
+        """Retourne une liste vide en mode stub."""
+        return []
+
+    @staticmethod
+    def sync_pipeline_statuses(*args: Any, **kwargs: Any) -> bool:
+        """Retourne False en mode stub."""
+        return False
+
+
+class InputSanitizerStub:
+    """Stub pour src.security.InputSanitizer."""
+
+    @staticmethod
+    def validate_wizard_answers(answers: dict[str, Any]) -> dict[str, Any]:
+        """Retourne les réponses telles quelles en mode stub."""
+        return answers
 
 
 class RecommendationEngineStub:

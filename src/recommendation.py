@@ -42,6 +42,7 @@ _REGION_FACTORS = {
 }
 
 # Consommation électrique estimée par type d'instance (kWh/mois)
+# Source: Cloud Carbon Footprint & Teads Engineering
 INSTANCE_KWH_MONTH: dict[str, float] = {
     "e2-micro": 5.0,
     "e2-small": 8.0,
@@ -56,6 +57,11 @@ INSTANCE_KWH_MONTH: dict[str, float] = {
     "c2-standard-4": 45.0,
 }
 _DEFAULT_KWH_MONTH = 15.0
+
+# Consommation stockage (kWh/mois/TB)
+_STORAGE_KWH_PER_TB_SSD = 1.2
+_STORAGE_KWH_PER_TB_HDD = 0.65
+_STORAGE_KWH_PER_TB_DEFAULT = 0.8
 
 # Mapping type d'application -> stack logicielle recommandée
 APP_TYPE_STACKS = {
@@ -174,13 +180,32 @@ class RecommendationEngine:
 
     @staticmethod
     def _total_monthly_kwh(resources: list[dict[str, Any]]) -> float:
-        """Calcule la consommation électrique mensuelle totale (kWh) des instances compute."""
+        """Calcule la consommation électrique mensuelle totale (kWh) des instances compute et du stockage."""
         total = 0.0
         for res in resources:
-            if res.get("type") != "compute":
-                continue
-            machine = str(res.get("machine_type", "e2-medium"))
-            total += RecommendationEngine._get_kwh_for_machine(machine)
+            rtype = res.get("type")
+            
+            if rtype == "compute":
+                machine = str(res.get("machine_type", "e2-medium"))
+                total += RecommendationEngine._get_kwh_for_machine(machine)
+                
+                # Ajout consommation disque boot (si spécifié)
+                disk_size_gb = float(res.get("disk_size", 0))
+                disk_type = str(res.get("disk_type", "pd-standard"))
+                if disk_size_gb > 0:
+                    kwh_per_tb = (
+                        _STORAGE_KWH_PER_TB_SSD
+                        if "ssd" in disk_type
+                        else _STORAGE_KWH_PER_TB_HDD
+                    )
+                    total += (disk_size_gb / 1000.0) * kwh_per_tb
+
+            elif rtype == "storage":
+                # Pour le stockage pur (Bucket), on assume HDD/Standard par défaut
+                # (simplification car GCS est abstrait)
+                # On n'a pas la taille ici (c'est du pay-per-use), donc on ignore ou on met un forfait
+                pass
+                
         return total
 
     @staticmethod

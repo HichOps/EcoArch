@@ -122,9 +122,9 @@ static_analysis:
   stage: test
   script:
     - echo "── Running mypy ──"
-    - mypy frontend/frontend/state.py --ignore-missing-imports --no-error-summary || true
+    - mypy frontend/frontend/state.py src/services/ --ignore-missing-imports --no-error-summary || true
     - echo "── Running ruff ──"
-    - ruff check src/ tests/ --output-format=gitlab > ruff-report.json || true
+    - ruff check src/ tests/ frontend/frontend/state.py --output-format=gitlab > ruff-report.json || true
   artifacts:
     when: always
     paths:

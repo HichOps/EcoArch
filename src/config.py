@@ -111,12 +111,13 @@ class Config:
     )
     GITLAB_PROJECT_URL = "https://gitlab.com/hichops/ecoarch"
 
-    # Redis / Celery (legacy – non utilisé sur Cloud Run)
-    REDIS_URL = _get_env("REDIS_URL", "redis://localhost:6379/0")
-
     # Authentification
     AUTH_SECRET_KEY = _get_secret_or_env("auth-secret-key", "AUTH_SECRET_KEY")
     AUTH_ENABLED: bool = bool(AUTH_SECRET_KEY)
+
+    # ── Environment Detection ─────────────────────────────────────
+    IS_CLOUD_RUN = bool(os.getenv("K_SERVICE"))
+    IS_CI = bool(os.getenv("CI"))
 
     # ── Client Supabase singleton ─────────────────────────────────
     _supabase_client = None

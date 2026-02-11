@@ -10,7 +10,7 @@ from __future__ import annotations
 import re
 from typing import Any
 
-from .config import GCPConfig
+from .config import Config, GCPConfig
 
 
 class ValidationError(ValueError):
@@ -55,6 +55,7 @@ class InputSanitizer:
 
     @classmethod
     def _validate_pattern(cls, value: str, field_name: str) -> str:
+        """Vérifie qu'une valeur correspond au pattern alphanumérique sécurisé."""
         if not cls._RE_SAFE_VALUE.match(value):
             raise ValidationError(
                 f"{field_name} contient des caractères interdits: {value!r}"
@@ -68,6 +69,7 @@ class InputSanitizer:
         field_name: str,
         allowed: set[str],
     ) -> str:
+        """Vérifie qu'une valeur appartient à une whitelist stricte."""
         if value not in allowed:
             raise ValidationError(
                 f"{field_name} non autorisé: {value!r}. Valeurs acceptées: {sorted(allowed)}"
@@ -97,33 +99,84 @@ class InputSanitizer:
 
     @classmethod
     def validate_machine_type(cls, value: str) -> str:
+        """Valide un type de machine Compute Engine contre la whitelist GCPConfig."""
         return cls._validate_whitelist(
             value, "machine_type", cls._ALLOWED_MACHINE_TYPES
         )
 
     @classmethod
     def validate_db_tier(cls, value: str) -> str:
+        """Valide un tier Cloud SQL contre la whitelist GCPConfig."""
         return cls._validate_whitelist(value, "db_tier", cls._ALLOWED_DB_TIERS)
 
     @classmethod
     def validate_db_version(cls, value: str) -> str:
+        """Valide une version de base de données contre la whitelist GCPConfig."""
         return cls._validate_whitelist(value, "db_version", cls._ALLOWED_DB_VERSIONS)
 
     @classmethod
     def validate_storage_class(cls, value: str) -> str:
+        """Valide une classe de stockage Cloud Storage contre la whitelist GCPConfig."""
         return cls._validate_whitelist(
             value, "storage_class", cls._ALLOWED_STORAGE_CLASSES
         )
 
     @classmethod
     def validate_disk_type(cls, value: str) -> str:
+        """Valide un type de disque persistant contre la whitelist GCPConfig."""
         return cls._validate_whitelist(value, "disk_type", cls._ALLOWED_DISK_TYPES)
 
     @classmethod
     def validate_software_stack(cls, value: str) -> str:
+        """Valide un identifiant de stack logicielle contre la whitelist GCPConfig."""
         return cls._validate_whitelist(
             value, "software_stack", cls._ALLOWED_SOFTWARE_STACKS
         )
+
+    @classmethod
+    def validate_wizard_answers(cls, answers: dict[str, Any]) -> dict[str, str]:
+        """Valide l'ensemble des réponses du Wizard."""
+        validated = {}
+        
+        # Environment
+        env = str(answers.get("environment", "dev"))
+        if env not in {"dev", "prod"}:
+            env = "dev"
+        validated["environment"] = env
+        
+        # Traffic
+        traffic = str(answers.get("traffic", "low"))
+        if traffic not in {"low", "medium", "high"}:
+            traffic = "low"
+        validated["traffic"] = traffic
+        
+        # Workload
+        workload = str(answers.get("workload", "general"))
+        if workload not in {"general", "cpu", "memory"}:
+            workload = "general"
+        validated["workload"] = workload
+        
+        # Criticality
+        crit = str(answers.get("criticality", "low"))
+        if crit not in {"low", "high"}:
+            crit = "low"
+        validated["criticality"] = crit
+        
+        # Type
+        atype = str(answers.get("type", "web"))
+        if atype not in {"web", "api", "backend", "batch", "microservices"}:
+            atype = "web"
+        validated["type"] = atype
+        
+        # Region (optionnel)
+        if "region" in answers:
+            region = str(answers["region"])
+            if region in GCPConfig.REGIONS:
+                validated["region"] = region
+            else:
+                validated["region"] = Config.DEFAULT_REGION
+
+        return validated
 
     # ── Validation de ressource complète ───────────────────────────
 
