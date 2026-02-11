@@ -286,13 +286,13 @@ Chaque VM peut être provisionnée avec un logiciel pré-installé via `metadata
 ```mermaid
 graph LR
     CART["🛒 Panier<br/><i>software_stack: docker</i>"]
-    ENRICH["deployer.py<br/><b>_enrich_resources_for_terraform()</b>"]
+    ENRICH["deployer.py<br/><b>enrich_resources</b>"]
     GCPCONF["GCPConfig<br/>.SOFTWARE_STACKS"]
     TF["Terraform<br/><b>metadata_startup_script</b>"]
     VM["🖥️ VM GCP<br/><i>Docker installé au boot</i>"]
 
     CART --> ENRICH
-    GCPCONF -.->|get_startup_script()| ENRICH
+    GCPCONF -.->|get_startup_script| ENRICH
     ENRICH -->|JSON enrichi| TF --> VM
 
     style CART fill:#1e293b,stroke:#60a5fa,color:#eee
@@ -302,7 +302,6 @@ graph LR
     style VM fill:#065f46,stroke:#34d399,color:#eee
 ```
 
----
 
 ## 📊 Audit & Status Polling
 
