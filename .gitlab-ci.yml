@@ -251,5 +251,5 @@ terraform_deploy:
     - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
   environment:
-    name: ${ECOARCH_ACTION:-deploy}/$ECOARCH_DEPLOYMENT_ID
+    name: ${ECOARCH_ACTION:-deploy}/${ECOARCH_DEPLOYMENT_ID:-manual}
     action: start

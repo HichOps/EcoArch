@@ -789,16 +789,21 @@ class State(rx.State):
     # ===== COMPUTED PROPERTIES =====
     @rx.var
     def chart_data(self) -> list[dict]:
-        """Données pour le graphique de répartition des coûts."""
+        """Données pour le graphique de répartition des coûts.
+
+        Chaque ressource = une tranche avec sa propre couleur
+        déterminée par son type (Compute, SQL, Storage, Network).
+        """
         if not self.details:
             return []
 
-        colors = {
-            "Compute": "#007AFF",
-            "SQL": "#AF52DE",
-            "Storage": "#FF9500",
-            "Network": "#5AC8FA",
-            "Autre": "#FF2D55",
+        # Palette par type de ressource
+        type_colors = {
+            "Compute": "#007AFF",   # Bleu Apple
+            "SQL":     "#AF52DE",   # Violet Apple
+            "Storage": "#FF9500",   # Orange Apple
+            "Network": "#5AC8FA",   # Teal Apple
+            "Autre":   "#FF2D55",   # Rose Apple
         }
 
         data = []
@@ -812,13 +817,13 @@ class State(rx.State):
                     if value <= 0:
                         continue
 
-                    name = res.get("name", "").lower()
-                    category = self._categorize_resource(name)
+                    name = res.get("name", "Ressource")
+                    category = self._categorize_resource(name.lower())
 
                     data.append({
-                        "name": category,
-                        "value": value,
-                        "fill": colors.get(category, colors["Autre"]),
+                        "name": name,
+                        "value": round(value, 2),
+                        "fill": type_colors.get(category, type_colors["Autre"]),
                     })
 
         except Exception:
@@ -828,13 +833,13 @@ class State(rx.State):
 
     @staticmethod
     def _categorize_resource(name: str) -> str:
-        """Catégorise une ressource par son nom."""
-        if "sql" in name:
+        """Catégorise une ressource par son nom (insensible à la casse)."""
+        if any(kw in name for kw in ("sql", "database", "db-")):
             return "SQL"
-        if "instance" in name:
+        if any(kw in name for kw in ("vm", "instance", "compute", "e2-", "n1-", "n2-", "c2-")):
             return "Compute"
-        if "storage" in name:
+        if any(kw in name for kw in ("storage", "gcs", "bucket")):
             return "Storage"
-        if "address" in name or "forwarding" in name:
+        if any(kw in name for kw in ("address", "forwarding", "load_balancer", "lb")):
             return "Network"
         return "Autre"
