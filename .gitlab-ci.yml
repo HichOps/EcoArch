@@ -210,11 +210,14 @@ terraform_deploy:
   image:
     name: hashicorp/terraform:${TERRAFORM_VERSION}
     entrypoint: [""]
+  variables:
+    ECOARCH_ACTION: "deploy"
+    ECOARCH_DEPLOYMENT_ID: "manual"
   # TF_HTTP_* variables héritées du scope global
   script:
     - echo "═══════════════════════════════════════════════"
-    - echo "  EcoArch Deploy – ID ${ECOARCH_DEPLOYMENT_ID:-manual}"
-    - echo "  Action  ${ECOARCH_ACTION:-apply}"
+    - echo "  EcoArch Deploy – ID ${ECOARCH_DEPLOYMENT_ID}"
+    - echo "  Action  ${ECOARCH_ACTION}"
     - echo "═══════════════════════════════════════════════"
     - cd ${CI_PROJECT_DIR}/${TF_ROOT}
     #
@@ -243,7 +246,7 @@ terraform_deploy:
         terraform plan -input=false -out=deploy.tfplan
         terraform apply -auto-approve -input=false deploy.tfplan
       fi
-    - echo "✅ Terraform ${ECOARCH_ACTION:-apply} terminé avec succès"
+    - echo "✅ Terraform ${ECOARCH_ACTION} terminé avec succès"
   rules:
     # Déclenché uniquement via l'API Trigger (depuis l'app EcoArch)
     - if: $CI_PIPELINE_SOURCE == "trigger"
@@ -251,5 +254,5 @@ terraform_deploy:
     - if: $CI_PIPELINE_SOURCE == "web"
       when: manual
   environment:
-    name: ${ECOARCH_ACTION:-deploy}/${ECOARCH_DEPLOYMENT_ID:-manual}
+    name: $ECOARCH_ACTION/$ECOARCH_DEPLOYMENT_ID
     action: start
