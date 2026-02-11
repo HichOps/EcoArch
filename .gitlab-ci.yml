@@ -197,14 +197,79 @@ infracost_analysis:
     expire_in: 1 week
 
 # ============================================================
-#  STAGE 4 : deploy (Terraform Apply via Trigger)
+#  STAGE 4 : deploy
 # ============================================================
-# Ce stage est déclenché par l'application EcoArch via l'API
-# GitLab Trigger. Il reçoit les variables :
-#   - TF_VAR_architecture_json : panier sérialisé en JSON
-#   - ECOARCH_DEPLOYMENT_ID    : identifiant unique du déploiement
-#   - ECOARCH_ACTION           : "apply" ou "destroy"
 
+# ── 4a. Cloud Run – Build & Deploy de l'app EcoArch ──────────
+cloud_run_deploy:
+  stage: deploy
+  image: google/cloud-sdk:slim
+  variables:
+    SERVICE_NAME: "ecoarch-app"
+    CLOUD_RUN_MEMORY: "1Gi"
+    CLOUD_RUN_CPU: "1"
+    CLOUD_RUN_PORT: "8000"
+    CLOUD_RUN_MIN_INSTANCES: "0"
+    CLOUD_RUN_MAX_INSTANCES: "4"
+    CLOUD_RUN_CONCURRENCY: "80"
+  id_tokens:
+    GCP_ID_TOKEN:
+      aud: https://iam.googleapis.com/projects/514436528658/locations/global/workloadIdentityPools/gitlab-pool/providers/gitlab-provider
+  before_script:
+    - *gcp_setup
+    - apt-get update -qq && apt-get install -y -qq docker.io >/dev/null
+  script:
+    # ── Auto-version ──
+    - |
+      CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0")
+      MAJOR=$(echo "$CURRENT_TAG" | sed 's/^v//' | cut -d. -f1)
+      MINOR=$(echo "$CURRENT_TAG" | sed 's/^v//' | cut -d. -f2)
+      PATCH=$(echo "$CURRENT_TAG" | sed 's/^v//' | cut -d. -f3)
+      PATCH=$((PATCH + 1))
+      VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+      echo "VERSION=${VERSION}" | tee version.env
+    # ── Docker Build & Push ──
+    - IMAGE="${TF_VAR_region}-docker.pkg.dev/${TF_VAR_project_id}/ecoarch/${SERVICE_NAME}"
+    - gcloud auth configure-docker "${TF_VAR_region}-docker.pkg.dev" --quiet
+    - docker build --platform linux/amd64 --build-arg VERSION="${VERSION}" -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" .
+    - docker push "${IMAGE}:${VERSION}"
+    - docker push "${IMAGE}:latest"
+    # ── Cloud Run Deploy ──
+    - |
+      gcloud run deploy "${SERVICE_NAME}" \
+        --project="${TF_VAR_project_id}" \
+        --region="${TF_VAR_region}" \
+        --image="${IMAGE}:${VERSION}" \
+        --platform=managed \
+        --allow-unauthenticated \
+        --port="${CLOUD_RUN_PORT}" \
+        --memory="${CLOUD_RUN_MEMORY}" \
+        --cpu="${CLOUD_RUN_CPU}" \
+        --min-instances="${CLOUD_RUN_MIN_INSTANCES}" \
+        --max-instances="${CLOUD_RUN_MAX_INSTANCES}" \
+        --concurrency="${CLOUD_RUN_CONCURRENCY}" \
+        --set-env-vars="GCP_PROJECT_ID=${TF_VAR_project_id},APP_VERSION=${VERSION}" \
+        --quiet
+    # ── Git tag ──
+    - git tag -a "${VERSION}" -m "CI deploy ${VERSION}" || true
+    - git push origin "${VERSION}" || true
+    - echo "✅ Cloud Run deploy ${VERSION} terminé"
+  artifacts:
+    reports:
+      dotenv: version.env
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+      when: never
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+      when: manual
+      allow_failure: false
+  environment:
+    name: production
+    action: start
+
+# ── 4b. Terraform Apply (déclenché via API Trigger) ──────────
+# Reçoit : TF_VAR_architecture_json, ECOARCH_DEPLOYMENT_ID, ECOARCH_ACTION
 terraform_deploy:
   stage: deploy
   image:

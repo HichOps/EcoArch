@@ -2,8 +2,35 @@
 # ══════════════════════════════════════════════════════════════════
 #  EcoArch – Script de déploiement Cloud Run
 #  Gère : auto-versioning, test gating, Docker build, Cloud Run deploy
+#
+#  Usage :
+#    ./deploy.sh [patch|minor|major]           # Full deploy (prod)
+#    ./deploy.sh --local [patch|minor|major]   # Tests + build local uniquement
+#    ./deploy.sh --dry-run [patch|minor|major] # Simulation complète sans push/deploy
 # ══════════════════════════════════════════════════════════════════
 set -euo pipefail
+
+# ── Mode ───────────────────────────────────────────────────────────
+MODE="prod"       # prod | local | dry-run
+BUMP_TYPE="patch"
+
+for arg in "$@"; do
+    case "$arg" in
+        --local)   MODE="local" ;;
+        --dry-run) MODE="dry-run" ;;
+        major|minor|patch) BUMP_TYPE="$arg" ;;
+        -h|--help)
+            echo "Usage: $0 [--local|--dry-run] [patch|minor|major]"
+            echo ""
+            echo "Modes :"
+            echo "  (default)   Full pipeline : tests → build → push → deploy → tag"
+            echo "  --local     Tests + Docker build local uniquement (pas de push/deploy)"
+            echo "  --dry-run   Simulation complète, rien n'est envoyé (preview)"
+            exit 0
+            ;;
+        *) echo "Argument inconnu: $arg"; exit 1 ;;
+    esac
+done
 
 # ── Configuration ──────────────────────────────────────────────────
 GCP_PROJECT="${GCP_PROJECT_ID:-ecoarch-mvp-1768828854}"
@@ -25,12 +52,14 @@ RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
 BLUE='\033[0;34m'
+CYAN='\033[0;36m'
 NC='\033[0m'
 
 log()   { echo -e "${BLUE}[EcoArch]${NC} $*"; }
 ok()    { echo -e "${GREEN}[✅]${NC} $*"; }
 warn()  { echo -e "${YELLOW}[⚠️]${NC} $*"; }
 fail()  { echo -e "${RED}[❌]${NC} $*"; exit 1; }
+dry()   { echo -e "${CYAN}[DRY-RUN]${NC} $*"; }
 
 # ── 1. Auto-versioning ────────────────────────────────────────────
 bump_version() {
@@ -44,7 +73,7 @@ bump_version() {
     minor=$(echo "$current" | sed 's/^v//' | cut -d. -f2)
     patch=$(echo "$current" | sed 's/^v//' | cut -d. -f3)
 
-    # Bump patch par défaut, ou minor/major via arg
+    # Bump selon le type demandé
     case "${1:-patch}" in
         major) major=$((major + 1)); minor=0; patch=0 ;;
         minor) minor=$((minor + 1)); patch=0 ;;
@@ -69,6 +98,11 @@ run_tests() {
 
 # ── 3. Docker Build ───────────────────────────────────────────────
 docker_build() {
+    if [ "$MODE" = "dry-run" ]; then
+        dry "docker build --platform linux/amd64 --build-arg VERSION=${VERSION} -t ${IMAGE_NAME}:${VERSION} ."
+        return
+    fi
+
     log "Build Docker : ${IMAGE_NAME}:${VERSION}"
 
     docker build \
@@ -83,9 +117,14 @@ docker_build() {
 
 # ── 4. Docker Push ────────────────────────────────────────────────
 docker_push() {
+    if [ "$MODE" != "prod" ]; then
+        [ "$MODE" = "dry-run" ] && dry "docker push ${IMAGE_NAME}:${VERSION}"
+        [ "$MODE" = "local" ]   && warn "Mode local – push ignoré"
+        return
+    fi
+
     log "Push vers Artifact Registry..."
 
-    # Authentification si nécessaire
     gcloud auth configure-docker "${GCP_REGION}-docker.pkg.dev" --quiet 2>/dev/null || true
 
     docker push "${IMAGE_NAME}:${VERSION}"
@@ -96,6 +135,12 @@ docker_push() {
 
 # ── 5. Cloud Run Deploy ──────────────────────────────────────────
 cloud_run_deploy() {
+    if [ "$MODE" != "prod" ]; then
+        [ "$MODE" = "dry-run" ] && dry "gcloud run deploy ${SERVICE_NAME} --image=${IMAGE_NAME}:${VERSION} --region=${GCP_REGION}"
+        [ "$MODE" = "local" ]   && warn "Mode local – deploy Cloud Run ignoré"
+        return
+    fi
+
     log "Déploiement Cloud Run : ${SERVICE_NAME}"
 
     gcloud run deploy "${SERVICE_NAME}" \
@@ -120,7 +165,6 @@ APP_VERSION=${VERSION}" \
 
     ok "Service déployé"
 
-    # Récupérer l'URL
     local url
     url=$(gcloud run services describe "${SERVICE_NAME}" \
         --project="${GCP_PROJECT}" \
@@ -132,6 +176,12 @@ APP_VERSION=${VERSION}" \
 
 # ── 6. Tag Git ────────────────────────────────────────────────────
 git_tag() {
+    if [ "$MODE" != "prod" ]; then
+        [ "$MODE" = "dry-run" ] && dry "git tag -a ${VERSION} -m 'Deploy ${VERSION}'"
+        [ "$MODE" = "local" ]   && log "Version ${VERSION} (local only, pas de tag/push)"
+        return
+    fi
+
     log "Tag Git : ${VERSION}"
 
     git tag -a "${VERSION}" -m "Deploy ${VERSION} to Cloud Run" 2>/dev/null || warn "Tag existe déjà"
@@ -140,15 +190,18 @@ git_tag() {
 
 # ── Main ──────────────────────────────────────────────────────────
 main() {
-    local bump_type="${1:-patch}"
-
     echo ""
     echo -e "${BLUE}╔══════════════════════════════════════════════╗${NC}"
     echo -e "${BLUE}║       EcoArch – Pipeline de Déploiement      ║${NC}"
     echo -e "${BLUE}╚══════════════════════════════════════════════╝${NC}"
     echo ""
 
-    bump_version "${bump_type}"
+    if [ "$MODE" != "prod" ]; then
+        echo -e "${CYAN}  Mode : ${MODE} | Bump : ${BUMP_TYPE}${NC}"
+        echo ""
+    fi
+
+    bump_version "${BUMP_TYPE}"
     run_tests
     docker_build
     docker_push
@@ -156,10 +209,19 @@ main() {
     git_tag
 
     echo ""
-    echo -e "${GREEN}══════════════════════════════════════════════${NC}"
-    echo -e "${GREEN}  Déploiement ${VERSION} terminé avec succès !  ${NC}"
-    echo -e "${GREEN}══════════════════════════════════════════════${NC}"
+    if [ "$MODE" = "dry-run" ]; then
+        echo -e "${CYAN}══════════════════════════════════════════════${NC}"
+        echo -e "${CYAN}  Dry-run ${VERSION} terminé (aucune action réelle)${NC}"
+        echo -e "${CYAN}══════════════════════════════════════════════${NC}"
+    elif [ "$MODE" = "local" ]; then
+        echo -e "${GREEN}══════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}  Build local ${VERSION} OK – prêt pour la prod  ${NC}"
+        echo -e "${GREEN}══════════════════════════════════════════════${NC}"
+    else
+        echo -e "${GREEN}══════════════════════════════════════════════${NC}"
+        echo -e "${GREEN}  Déploiement ${VERSION} terminé avec succès !  ${NC}"
+        echo -e "${GREEN}══════════════════════════════════════════════${NC}"
+    fi
 }
 
-# Appel avec le type de bump : major, minor ou patch (default)
-main "$@"
+main
