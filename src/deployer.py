@@ -15,7 +15,7 @@ from typing import Any
 
 import requests
 
-from src.config import Config
+from src.config import Config, GCPConfig
 
 logger = logging.getLogger(__name__)
 
@@ -31,6 +31,26 @@ class PipelineResult:
     pipeline_id: int | None = None
     pipeline_url: str | None = None
     error: str | None = None
+
+
+def _enrich_resources_for_terraform(
+    resources: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Enrichit les ressources compute avec le contenu du startup_script.
+
+    Le script est récupéré depuis GCPConfig.SOFTWARE_STACKS en fonction
+    du champ ``software_stack`` de chaque ressource.
+    Cela permet à Terraform d'utiliser ``metadata_startup_script``
+    pour installer Docker, Nginx, LAMP, etc. au boot de la VM.
+    """
+    enriched: list[dict[str, Any]] = []
+    for res in resources:
+        res = dict(res)  # copie pour ne pas muter l'original
+        if res.get("type") == "compute":
+            stack_id = res.get("software_stack", "none")
+            res["startup_script"] = GCPConfig.get_startup_script(stack_id)
+        enriched.append(res)
+    return enriched
 
 
 def trigger_deployment(
@@ -61,8 +81,11 @@ def trigger_deployment(
         logger.error(msg)
         return PipelineResult(success=False, error=msg)
 
-    # Sérialiser le panier en JSON compact
-    architecture_json = json.dumps(resources, separators=(",", ":"))
+    # Enrichir les ressources compute avec les startup_scripts
+    enriched = _enrich_resources_for_terraform(resources)
+
+    # Sérialiser le panier enrichi en JSON compact
+    architecture_json = json.dumps(enriched, separators=(",", ":"))
 
     url = f"https://gitlab.com/api/v4/projects/{project_id}/trigger/pipeline"
 
@@ -70,6 +93,7 @@ def trigger_deployment(
         "token": token,
         "ref": Config.GITLAB_REF,
         "variables[TF_VAR_architecture_json]": architecture_json,
+        "variables[TF_VAR_deployment_id]": deployment_id,
         "variables[ECOARCH_DEPLOYMENT_ID]": deployment_id,
         "variables[ECOARCH_ACTION]": action,
     }
@@ -134,3 +158,73 @@ def trigger_destruction(
 ) -> PipelineResult:
     """Raccourci pour déclencher une destruction via GitLab CI/CD."""
     return trigger_deployment(resources, deployment_id, action="destroy")
+
+
+# ── Pipeline Status Polling ───────────────────────────────────
+
+# Mapping GitLab pipeline status → EcoArch audit status
+_GITLAB_STATUS_MAP: dict[str, str] = {
+    "success": "SUCCESS",
+    "failed": "FAILED",
+    "canceled": "CANCELLED",
+}
+
+# Statuts "en cours" de GitLab (on ne met pas à jour l'audit)
+_GITLAB_RUNNING_STATUSES = {
+    "created", "waiting_for_resource", "preparing",
+    "pending", "running", "manual", "scheduled",
+}
+
+
+def check_pipeline_status(pipeline_id: int | str) -> str | None:
+    """Interroge l'API GitLab pour récupérer le statut d'un pipeline.
+
+    Retourne le statut EcoArch (SUCCESS / FAILED / CANCELLED / RUNNING)
+    ou None si impossible de récupérer le statut.
+
+    Nécessite GITLAB_API_TOKEN avec scope ``read_api``.
+    """
+    api_token = Config.GITLAB_API_TOKEN
+    project_id = Config.GITLAB_PROJECT_ID
+
+    if not api_token or not project_id:
+        return None
+
+    url = f"https://gitlab.com/api/v4/projects/{project_id}/pipelines/{pipeline_id}"
+    headers = {"PRIVATE-TOKEN": api_token}
+
+    try:
+        resp = requests.get(url, headers=headers, timeout=10)
+        if resp.status_code != 200:
+            logger.warning(
+                "GitLab API %s pour pipeline %s: %s",
+                resp.status_code, pipeline_id, resp.text[:200],
+            )
+            return None
+
+        gitlab_status = resp.json().get("status", "")
+
+        if gitlab_status in _GITLAB_STATUS_MAP:
+            return _GITLAB_STATUS_MAP[gitlab_status]
+        if gitlab_status in _GITLAB_RUNNING_STATUSES:
+            return "RUNNING"
+
+        logger.info("Statut GitLab inconnu: %s", gitlab_status)
+        return None
+
+    except Exception as exc:
+        logger.warning("Erreur polling pipeline %s: %s", pipeline_id, exc)
+        return None
+
+
+def extract_pipeline_id(pipeline_url: str) -> int | None:
+    """Extrait le pipeline_id depuis une URL GitLab.
+
+    Format attendu : https://gitlab.com/…/-/pipelines/12345
+    """
+    if not pipeline_url:
+        return None
+    try:
+        return int(pipeline_url.rstrip("/").split("/")[-1])
+    except (ValueError, IndexError):
+        return None

@@ -99,6 +99,9 @@ class Config:
     GITLAB_TRIGGER_TOKEN = _get_secret_or_env(
         "GITLAB_TRIGGER_TOKEN", "GITLAB_TRIGGER_TOKEN"
     )
+    GITLAB_API_TOKEN = _get_secret_or_env(
+        "GITLAB_API_TOKEN", "GITLAB_API_TOKEN"
+    )
     GITLAB_PROJECT_ID = _get_secret_or_env(
         "GITLAB_PROJECT_ID", "GITLAB_PROJECT_ID", default="77811562"
     )

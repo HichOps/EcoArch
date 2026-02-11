@@ -29,7 +29,12 @@ try:
     from src.config import GCPConfig, Config
     from src.simulation import InfracostSimulator
     from src.recommendation import RecommendationEngine
-    from src.deployer import trigger_deployment, trigger_destruction
+    from src.deployer import (
+        trigger_deployment,
+        trigger_destruction,
+        check_pipeline_status,
+        extract_pipeline_id,
+    )
 except ImportError:
     from src.stubs import (
         GCPConfigStub as GCPConfig,
@@ -39,6 +44,8 @@ except ImportError:
     )
     trigger_deployment = None
     trigger_destruction = None
+    check_pipeline_status = None  # type: ignore[assignment]
+    extract_pipeline_id = None  # type: ignore[assignment]
 
 logger = logging.getLogger(__name__)
 
@@ -752,7 +759,13 @@ class State(rx.State):
     audit_logs: list[dict] = []
 
     def load_audit_logs(self) -> None:
-        """Charge les logs d'audit depuis Supabase."""
+        """Charge les logs d'audit depuis Supabase.
+
+        Pour chaque entrée dont le statut est PENDING ou PIPELINE_SENT,
+        interroge l'API GitLab afin de récupérer le statut final du
+        pipeline (SUCCESS / FAILED / CANCELLED / RUNNING) et met à jour
+        Supabase en conséquence.
+        """
         sb = _get_supabase()
         if not sb:
             return
@@ -762,8 +775,38 @@ class State(rx.State):
                 "created_at", desc=True
             ).limit(50).execute()
 
+            rows = res.data or []
+
+            # ── Polling GitLab pour les pipelines en attente ──
+            if check_pipeline_status is not None and extract_pipeline_id is not None:
+                for row in rows:
+                    status = row.get("status", "")
+                    if status not in ("PENDING", "PIPELINE_SENT"):
+                        continue
+
+                    p_url = row.get("pipeline_url", "")
+                    p_id = extract_pipeline_id(p_url)
+                    if not p_id:
+                        continue
+
+                    new_status = check_pipeline_status(p_id)
+                    if new_status and new_status != status:
+                        # Met à jour Supabase
+                        try:
+                            sb.table("audit_logs").update(
+                                {"status": new_status}
+                            ).eq("id", row["id"]).execute()
+                            row["status"] = new_status
+                        except Exception:
+                            logger.warning(
+                                "Échec mise à jour audit #%s → %s",
+                                row.get("id"),
+                                new_status,
+                                exc_info=True,
+                            )
+
             self.audit_logs = [
-                self._format_audit_row(row) for row in res.data
+                self._format_audit_row(row) for row in rows
             ]
         except Exception:
             logger.warning("Échec chargement audit logs", exc_info=True)

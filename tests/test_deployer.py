@@ -14,6 +14,9 @@ from src.deployer import (
     trigger_deployment,
     trigger_destruction,
     PipelineResult,
+    check_pipeline_status,
+    extract_pipeline_id,
+    _enrich_resources_for_terraform,
 )
 
 
@@ -83,8 +86,11 @@ class TestTriggerDeployment:
         payload = call_args[1]["data"]
         assert payload["token"] == "glptt-test-token"
         assert payload["ref"] == "main"
-        assert "TF_VAR_architecture_json" in payload["variables[TF_VAR_architecture_json]"] or \
-               payload["variables[TF_VAR_architecture_json]"] == json.dumps(self.RESOURCES, separators=(",", ":"))
+        # Le panier est enrichi avec startup_script pour les compute
+        arch = json.loads(payload["variables[TF_VAR_architecture_json]"])
+        assert arch[0]["type"] == "compute"
+        assert arch[0]["machine_type"] == "e2-medium"
+        assert "startup_script" in arch[0]
 
     @patch("src.deployer.requests.post")
     @patch("src.deployer.Config")
@@ -259,3 +265,155 @@ class TestTriggerDestruction:
         assert result.success is True
         payload = mock_post.call_args[1]["data"]
         assert payload["variables[ECOARCH_ACTION]"] == "destroy"
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Tests : _enrich_resources_for_terraform
+# ══════════════════════════════════════════════════════════════════
+
+class TestEnrichResources:
+    """Vérifie l'enrichissement des ressources compute avec startup_script."""
+
+    def test_compute_gets_startup_script(self):
+        """Les ressources compute reçoivent le script de leur stack."""
+        resources = [{"type": "compute", "machine_type": "e2-micro", "software_stack": "docker"}]
+        enriched = _enrich_resources_for_terraform(resources)
+        assert len(enriched) == 1
+        assert "startup_script" in enriched[0]
+        assert "docker" in enriched[0]["startup_script"].lower()
+
+    def test_compute_none_stack_empty_script(self):
+        """software_stack='none' → script vide."""
+        resources = [{"type": "compute", "machine_type": "e2-micro", "software_stack": "none"}]
+        enriched = _enrich_resources_for_terraform(resources)
+        assert enriched[0]["startup_script"] == ""
+
+    def test_compute_missing_stack_empty_script(self):
+        """Pas de software_stack → script vide (fallback 'none')."""
+        resources = [{"type": "compute", "machine_type": "e2-micro"}]
+        enriched = _enrich_resources_for_terraform(resources)
+        assert enriched[0]["startup_script"] == ""
+
+    def test_sql_not_enriched(self):
+        """Les ressources SQL ne sont pas modifiées."""
+        resources = [{"type": "sql", "db_tier": "db-f1-micro"}]
+        enriched = _enrich_resources_for_terraform(resources)
+        assert "startup_script" not in enriched[0]
+
+    def test_storage_not_enriched(self):
+        """Les ressources storage ne sont pas modifiées."""
+        resources = [{"type": "storage", "storage_class": "STANDARD"}]
+        enriched = _enrich_resources_for_terraform(resources)
+        assert "startup_script" not in enriched[0]
+
+    def test_original_not_mutated(self):
+        """L'enrichissement ne mute pas la liste originale."""
+        original = [{"type": "compute", "machine_type": "e2-micro", "software_stack": "docker"}]
+        _enrich_resources_for_terraform(original)
+        assert "startup_script" not in original[0]
+
+    def test_mixed_resources(self):
+        """Seules les compute sont enrichies dans un panier mixte."""
+        resources = [
+            {"type": "compute", "machine_type": "e2-micro", "software_stack": "web-nginx"},
+            {"type": "sql", "db_tier": "db-f1-micro"},
+            {"type": "storage", "storage_class": "STANDARD"},
+        ]
+        enriched = _enrich_resources_for_terraform(resources)
+        assert len(enriched) == 3
+        assert "startup_script" in enriched[0]
+        assert "nginx" in enriched[0]["startup_script"].lower()
+        assert "startup_script" not in enriched[1]
+        assert "startup_script" not in enriched[2]
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Tests : extract_pipeline_id
+# ══════════════════════════════════════════════════════════════════
+
+class TestExtractPipelineId:
+    """Tests de l'extraction du pipeline_id depuis une URL."""
+
+    def test_standard_url(self):
+        url = "https://gitlab.com/hichops/ecoarch/-/pipelines/2319057640"
+        assert extract_pipeline_id(url) == 2319057640
+
+    def test_trailing_slash(self):
+        url = "https://gitlab.com/hichops/ecoarch/-/pipelines/12345/"
+        assert extract_pipeline_id(url) == 12345
+
+    def test_empty_url(self):
+        assert extract_pipeline_id("") is None
+
+    def test_none_url(self):
+        assert extract_pipeline_id(None) is None
+
+    def test_invalid_url(self):
+        assert extract_pipeline_id("not-a-valid-url") is None
+
+
+# ══════════════════════════════════════════════════════════════════
+#  Tests : check_pipeline_status
+# ══════════════════════════════════════════════════════════════════
+
+class TestCheckPipelineStatus:
+    """Tests du polling de statut de pipeline GitLab."""
+
+    @patch("src.deployer.requests.get")
+    @patch("src.deployer.Config")
+    def test_success_status(self, MockConfig, mock_get):
+        MockConfig.GITLAB_API_TOKEN = "glpat-xxx"
+        MockConfig.GITLAB_PROJECT_ID = "77811562"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "success"}
+        mock_get.return_value = mock_resp
+
+        assert check_pipeline_status(123) == "SUCCESS"
+
+    @patch("src.deployer.requests.get")
+    @patch("src.deployer.Config")
+    def test_failed_status(self, MockConfig, mock_get):
+        MockConfig.GITLAB_API_TOKEN = "glpat-xxx"
+        MockConfig.GITLAB_PROJECT_ID = "77811562"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "failed"}
+        mock_get.return_value = mock_resp
+
+        assert check_pipeline_status(456) == "FAILED"
+
+    @patch("src.deployer.requests.get")
+    @patch("src.deployer.Config")
+    def test_running_status(self, MockConfig, mock_get):
+        MockConfig.GITLAB_API_TOKEN = "glpat-xxx"
+        MockConfig.GITLAB_PROJECT_ID = "77811562"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 200
+        mock_resp.json.return_value = {"status": "running"}
+        mock_get.return_value = mock_resp
+
+        assert check_pipeline_status(789) == "RUNNING"
+
+    @patch("src.deployer.Config")
+    def test_no_api_token_returns_none(self, MockConfig):
+        MockConfig.GITLAB_API_TOKEN = ""
+        MockConfig.GITLAB_PROJECT_ID = "77811562"
+
+        assert check_pipeline_status(123) is None
+
+    @patch("src.deployer.requests.get")
+    @patch("src.deployer.Config")
+    def test_api_error_returns_none(self, MockConfig, mock_get):
+        MockConfig.GITLAB_API_TOKEN = "glpat-xxx"
+        MockConfig.GITLAB_PROJECT_ID = "77811562"
+
+        mock_resp = MagicMock()
+        mock_resp.status_code = 404
+        mock_resp.text = "Not found"
+        mock_get.return_value = mock_resp
+
+        assert check_pipeline_status(999) is None

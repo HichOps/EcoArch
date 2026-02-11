@@ -15,16 +15,10 @@ variable "zone" {
   default     = "us-central1-a"
 }
 
-variable "instance_name" {
-  description = "Nom de la VM"
+variable "deployment_id" {
+  description = "Identifiant unique du déploiement EcoArch (injecté via TF_VAR_deployment_id)"
   type        = string
-  default     = "ecoarch-test-ultime"
-}
-
-variable "machine_type" {
-  description = "Type d'instance (détermine le coût)"
-  type        = string
-  default     = "e2-micro" # Valeur actuelle générant ~99 USD
+  default     = "manual"
 }
 
 variable "boot_disk_image" {
