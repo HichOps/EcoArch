@@ -1,0 +1,1110 @@
+Running with gitlab-runner 18.7.0~pre.433.g3a5f2314 (3a5f2314)
+  on green-1.saas-linux-small-amd64.runners-manager.gitlab.com/default JLgUopmMV, system ID: s_deaa2ca09de7
+Preparing the "docker+machine" executor
+01:03
+Using Docker executor with image google/cloud-sdk:slim ...
+Starting service docker:24-dind...
+Using effective pull policy of [always] for container docker:24-dind
+Pulling docker image docker:24-dind ...
+Using docker image sha256:e31dbb0fb5be21256b536b8650b8a7dc3dcf2f72167c8d486685e272df439e7a for docker:24-dind with digest docker@sha256:9b17a9f25adf17b88d0a013b4f00160754adf4b07ccbe9986664a49886c2c98e ...
+Waiting for services to be up and running (timeout 30 seconds)...
+Using effective pull policy of [always] for container google/cloud-sdk:slim
+Pulling docker image google/cloud-sdk:slim ...
+Using docker image sha256:187e4eb94888f4c2dfcd8c075ebc7cf7d55033c1edbcaed05455f335f8dad9bf for google/cloud-sdk:slim with digest google/cloud-sdk@sha256:aabc0d0a4a2c8ceb940b2a0b7af63bb6b371e56ba1ab1ce8bfaa53e6596db1d5 ...
+Preparing environment
+00:06
+Using effective pull policy of [always] for container sha256:f93500ae95eba519e2c8b4d2b92fe5dce4016878b2ea9fe165e44442b697372c
+Running on runner-jlguopmmv-project-77811562-concurrent-0 via runner-jlguopmmv-s-l-s-amd64-1770828282-30d74b18...
+Getting source from Git repository
+00:02
+Gitaly correlation ID: ad5bc2390d834c08b9be182dbeab35df
+Fetching changes with git depth set to 20...
+Initialized empty Git repository in /builds/HichOps/ecoarch/.git/
+Created fresh repository.
+Checking out 93800899 as detached HEAD (ref is main)...
+Skipping Git submodules setup
+$ git remote set-url origin "${CI_REPOSITORY_URL}" || echo 'Not a git repository; skipping'
+Restoring cache
+00:04
+Checking cache for 0_requirements-dev-598fb6608307303d75bd8b41a5df185ebc1f8a5f-protected...
+Downloading cache from https://storage.googleapis.com/gitlab-com-runners-cache/project/77811562/0_requirements-dev-598fb6608307303d75bd8b41a5df185ebc1f8a5f-protected  ETag="d8aada46cb786164117d28fea8ebcc03"
+Successfully extracted cache
+Downloading artifacts
+00:02
+Downloading artifacts for terraform_plan (13077813055)...
+Downloading artifacts from coordinator... ok        correlation_id=aafd458824ed447b9532616702487b3a host=storage.googleapis.com id=13077813055 responseStatus=200 OK token=6c_JzNpuo
+Downloading artifacts for static_analysis (13077813103)...
+Downloading artifacts from coordinator... ok        correlation_id=f1dcf691368c4842828a82e15b44a58a host=storage.googleapis.com id=13077813103 responseStatus=200 OK token=6c_JzNpuo
+Downloading artifacts for infracost_analysis (13077813112)...
+Downloading artifacts from coordinator... ok        correlation_id=dd4f8bdba5454e2da96cacd8904b43fc host=storage.googleapis.com id=13077813112 responseStatus=200 OK token=6c_JzNpuo
+Executing "step_script" stage of the job script
+01:27
+Using effective pull policy of [always] for container google/cloud-sdk:slim
+Using docker image sha256:187e4eb94888f4c2dfcd8c075ebc7cf7d55033c1edbcaed05455f335f8dad9bf for google/cloud-sdk:slim with digest google/cloud-sdk@sha256:aabc0d0a4a2c8ceb940b2a0b7af63bb6b371e56ba1ab1ce8bfaa53e6596db1d5 ...
+$ echo "${GCP_ID_TOKEN}" > ${CI_PROJECT_DIR}/.google_id_token
+$ echo "{ # collapsed multi-line command
+$ export GOOGLE_APPLICATION_CREDENTIALS=${CI_PROJECT_DIR}/.google_creds.json
+$ apt-get update -qq && apt-get install -y -qq docker.io >/dev/null
+debconf: delaying package configuration, since apt-utils is not installed
+$ CURRENT_TAG=$(git describe --tags --abbrev=0 2>/dev/null || echo "v0.0.0") # collapsed multi-line command
+VERSION=v0.0.19
+$ IMAGE="${TF_VAR_region}-docker.pkg.dev/${TF_VAR_project_id}/ecoarch/${SERVICE_NAME}"
+$ gcloud auth configure-docker "${TF_VAR_region}-docker.pkg.dev" --quiet
+Adding credentials for: us-central1-docker.pkg.dev
+Docker configuration file updated.
+$ docker build --platform linux/amd64 --build-arg VERSION="${VERSION}" -t "${IMAGE}:${VERSION}" -t "${IMAGE}:latest" .
+#2 [internal] load .dockerignore
+#2 sha256:4ebdc41d56302e0464decbe3175c5cb184370bdec0d7cd239515afd0b1203965
+#2 transferring context: 581B done
+#2 DONE 0.0s
+#1 [internal] load build definition from Dockerfile
+#1 sha256:a2931ec132d709889ddc4597ae1666c43a26689754193fd931ffb2ce460d9e96
+#1 transferring dockerfile: 3.20kB done
+#1 DONE 0.0s
+#3 [internal] load metadata for docker.io/library/python:3.11-slim
+#3 sha256:fec50dacbb21839eefab803f73dbb4d9623839a8f78459ebb826d917bc361c9b
+#3 DONE 0.7s
+#14 [stage-1 1/9] FROM docker.io/library/python:3.11-slim@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf
+#14 sha256:16e4b25f1a071ea08d8b5608107ebc0430ea7eb7633e0c65d633230c694fa07c
+#14 resolve docker.io/library/python:3.11-slim@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf 0.0s done
+#14 sha256:8cbc47ff628d718fb76f7fca9897e4e8b607a4f543008cdee760705eecea1b24 0B / 14.36MB 0.1s
+#14 sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf 10.37kB / 10.37kB done
+#14 sha256:543d6cace00ffc96bc95d332493bb28a4332c6dd614aab5fcbd649ae8a7953d9 1.75kB / 1.75kB done
+#14 sha256:466c0182639be3c46be2bd95edae0a22e92ff39913aeca0fc8b6c1b22942dccb 5.47kB / 5.47kB done
+#14 sha256:0c8d55a45c0dc58de60579b9cc5b708de9e7957f4591fc7de941b67c7e245da0 0B / 29.78MB 0.1s
+#14 sha256:64faa99400e1388ed9f202917ada9fac34fd46c950d40cd4102364ee9d6ab804 0B / 1.29MB 0.1s
+#14 sha256:8cbc47ff628d718fb76f7fca9897e4e8b607a4f543008cdee760705eecea1b24 12.58MB / 14.36MB 0.4s
+#14 sha256:0c8d55a45c0dc58de60579b9cc5b708de9e7957f4591fc7de941b67c7e245da0 13.63MB / 29.78MB 0.4s
+#14 sha256:64faa99400e1388ed9f202917ada9fac34fd46c950d40cd4102364ee9d6ab804 1.29MB / 1.29MB 0.3s done
+#14 sha256:d85099f0969e8b2306770a12dffcda300208cc3a18b876c0ad3dc0cb51aefb9b 0B / 250B 0.4s
+#14 sha256:8cbc47ff628d718fb76f7fca9897e4e8b607a4f543008cdee760705eecea1b24 14.36MB / 14.36MB 0.5s done
+#14 sha256:0c8d55a45c0dc58de60579b9cc5b708de9e7957f4591fc7de941b67c7e245da0 29.16MB / 29.78MB 0.6s
+#14 sha256:d85099f0969e8b2306770a12dffcda300208cc3a18b876c0ad3dc0cb51aefb9b 250B / 250B 0.4s done
+#14 sha256:0c8d55a45c0dc58de60579b9cc5b708de9e7957f4591fc7de941b67c7e245da0 29.78MB / 29.78MB 0.7s done
+#14 extracting sha256:0c8d55a45c0dc58de60579b9cc5b708de9e7957f4591fc7de941b67c7e245da0
+#14 ...
+#9 [internal] load build context
+#9 sha256:e470c4f471e460b270868907f6f9de3b51f4a95ccdd08f15724527957309bb4d
+#9 transferring context: 102.04MB 1.7s done
+#9 DONE 1.8s
+#14 [stage-1 1/9] FROM docker.io/library/python:3.11-slim@sha256:0b23cfb7425d065008b778022a17b1551c82f8b4866ee5a7a200084b7e2eafbf
+#14 sha256:16e4b25f1a071ea08d8b5608107ebc0430ea7eb7633e0c65d633230c694fa07c
+#14 extracting sha256:0c8d55a45c0dc58de60579b9cc5b708de9e7957f4591fc7de941b67c7e245da0 1.8s done
+#14 extracting sha256:64faa99400e1388ed9f202917ada9fac34fd46c950d40cd4102364ee9d6ab804
+#14 extracting sha256:64faa99400e1388ed9f202917ada9fac34fd46c950d40cd4102364ee9d6ab804 0.1s done
+#14 extracting sha256:8cbc47ff628d718fb76f7fca9897e4e8b607a4f543008cdee760705eecea1b24
+#14 extracting sha256:8cbc47ff628d718fb76f7fca9897e4e8b607a4f543008cdee760705eecea1b24 0.9s done
+#14 extracting sha256:d85099f0969e8b2306770a12dffcda300208cc3a18b876c0ad3dc0cb51aefb9b
+#14 extracting sha256:d85099f0969e8b2306770a12dffcda300208cc3a18b876c0ad3dc0cb51aefb9b done
+#14 DONE 3.9s
+#10 [builder 2/7] WORKDIR /build
+#10 sha256:f27ff3440aa1ece25bf7dc2b969e975f0425e976bfa4ac2bff97f18e653a68e0
+#10 DONE 4.8s
+#13 [stage-1 2/9] WORKDIR /app
+#13 sha256:9982cbd4e253336a382289c7327da79a05e5fdbb113c70499f4aef30f15fb561
+#13 DONE 4.8s
+#12 [stage-1 3/9] RUN apt-get update &&     apt-get install -y --no-install-recommends ca-certificates curl unzip gnupg &&     curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg &&     echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com bookworm main"       > /etc/apt/sources.list.d/hashicorp.list &&     apt-get update && apt-get install -y --no-install-recommends terraform &&     curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh &&     apt-get purge -y curl unzip gnupg && apt-get autoremove -y &&     rm -rf /var/lib/apt/lists/*
+#12 sha256:a2bab25dd74dd4bab9d86d2df53ba27fe19e59b82db916e5cd0c705edb0f5f82
+#12 ...
+#8 [builder 3/7] COPY requirements.txt ./
+#8 sha256:3e86960450975377b8b8aaba7d5407b9bb2f1af656319c84423c9a29c8c4431f
+#8 DONE 0.2s
+#7 [builder 4/7] COPY frontend/requirements.txt ./frontend/
+#7 sha256:5ee94456a93ec93ef65d019cf5680f8e40b5da9519041c02f737d888e579f9e3
+#7 DONE 0.1s
+#6 [builder 5/7] RUN pip install --no-cache-dir       -r requirements.txt       -r frontend/requirements.txt
+#6 sha256:e1673e9f77995fb38eb0269cf098fd4a2cd928396f2ea903850b7f27adf748d9
+#6 2.999 Collecting reflex>=0.6.0 (from -r requirements.txt (line 2))
+#6 3.062   Downloading reflex-0.8.26-py3-none-any.whl.metadata (13 kB)
+#6 3.109 Collecting python-dotenv (from -r requirements.txt (line 3))
+#6 3.126   Downloading python_dotenv-1.2.1-py3-none-any.whl.metadata (25 kB)
+#6 3.218 Collecting supabase (from -r requirements.txt (line 6))
+#6 3.234   Downloading supabase-2.28.0-py3-none-any.whl.metadata (4.6 kB)
+#6 3.298 Collecting google-cloud-secret-manager (from -r requirements.txt (line 7))
+#6 3.313   Downloading google_cloud_secret_manager-2.26.0-py3-none-any.whl.metadata (9.8 kB)
+#6 3.385 Collecting requests (from -r requirements.txt (line 8))
+#6 3.401   Downloading requests-2.32.5-py3-none-any.whl.metadata (4.9 kB)
+#6 3.534 Collecting alembic<2.0,>=1.15.2 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 3.550   Downloading alembic-1.18.4-py3-none-any.whl.metadata (7.2 kB)
+#6 3.601 Collecting click>=8.2 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 3.617   Downloading click-8.3.1-py3-none-any.whl.metadata (2.6 kB)
+#6 4.149 Collecting granian>=2.5.5 (from granian[reload]>=2.5.5->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 4.169   Downloading granian-2.7.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (41 kB)
+#6 4.175      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 41.1/41.1 kB 19.4 MB/s eta 0:00:00
+#6 4.251 Collecting httpx<1.0,>=0.23.3 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 4.268   Downloading httpx-0.28.1-py3-none-any.whl.metadata (7.1 kB)
+#6 4.331 Collecting packaging<26,>=24.2 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 4.347   Downloading packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+#6 4.412 Collecting platformdirs<5.0,>=4.3.7 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 4.430   Downloading platformdirs-4.5.1-py3-none-any.whl.metadata (12 kB)
+#6 4.725 Collecting pydantic<3.0,>=1.10.21 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 4.741   Downloading pydantic-2.12.5-py3-none-any.whl.metadata (90 kB)
+#6 4.747      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 90.6/90.6 kB 27.8 MB/s eta 0:00:00
+#6 4.799 Collecting python-multipart<1.0,>=0.0.20 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 4.815   Downloading python_multipart-0.0.22-py3-none-any.whl.metadata (1.8 kB)
+#6 4.885 Collecting python-socketio<6.0,>=5.12.0 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 4.902   Downloading python_socketio-5.16.1-py3-none-any.whl.metadata (3.3 kB)
+#6 5.017 Collecting redis<8.0,>=5.2.1 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 5.033   Downloading redis-7.1.1-py3-none-any.whl.metadata (12 kB)
+#6 5.108 Collecting reflex-hosting-cli>=0.1.61 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 5.126   Downloading reflex_hosting_cli-0.1.61-py3-none-any.whl.metadata (833 bytes)
+#6 5.286 Collecting rich<15,>=13 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 5.302   Downloading rich-14.3.2-py3-none-any.whl.metadata (18 kB)
+#6 5.353 Collecting sqlmodel<0.1,>=0.0.27 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 5.370   Downloading sqlmodel-0.0.33-py3-none-any.whl.metadata (10 kB)
+#6 5.470 Collecting starlette>=0.47.0 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 5.486   Downloading starlette-0.52.1-py3-none-any.whl.metadata (6.3 kB)
+#6 5.542 Collecting typing-extensions>=4.13.0 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 5.559   Downloading typing_extensions-4.15.0-py3-none-any.whl.metadata (3.3 kB)
+#6 5.998 Collecting wrapt<3.0,>=1.17.0 (from reflex>=0.6.0->-r requirements.txt (line 2))
+#6 6.014   Downloading wrapt-2.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (7.4 kB)
+#6 6.088 Collecting realtime==2.28.0 (from supabase->-r requirements.txt (line 6))
+#6 6.104   Downloading realtime-2.28.0-py3-none-any.whl.metadata (7.0 kB)
+#6 6.159 Collecting supabase-functions==2.28.0 (from supabase->-r requirements.txt (line 6))
+#6 6.176   Downloading supabase_functions-2.28.0-py3-none-any.whl.metadata (2.4 kB)
+#6 6.240 Collecting storage3==2.28.0 (from supabase->-r requirements.txt (line 6))
+#6 6.257   Downloading storage3-2.28.0-py3-none-any.whl.metadata (2.1 kB)
+#6 6.316 Collecting supabase-auth==2.28.0 (from supabase->-r requirements.txt (line 6))
+#6 6.333   Downloading supabase_auth-2.28.0-py3-none-any.whl.metadata (6.4 kB)
+#6 6.397 Collecting postgrest==2.28.0 (from supabase->-r requirements.txt (line 6))
+#6 6.413   Downloading postgrest-2.28.0-py3-none-any.whl.metadata (3.4 kB)
+#6 6.970 Collecting yarl>=1.22.0 (from supabase->-r requirements.txt (line 6))
+#6 6.987   Downloading yarl-1.22.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (75 kB)
+#6 6.992      ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 75.1/75.1 kB 137.2 MB/s eta 0:00:00
+#6 7.048 Collecting deprecation>=2.1.0 (from postgrest==2.28.0->supabase->-r requirements.txt (line 6))
+#6 7.063   Downloading deprecation-2.1.0-py2.py3-none-any.whl.metadata (4.6 kB)
+#6 7.461 Collecting websockets<16,>=11 (from realtime==2.28.0->supabase->-r requirements.txt (line 6))
+#6 7.477   Downloading websockets-15.0.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+#6 ...
+#12 [stage-1 3/9] RUN apt-get update &&     apt-get install -y --no-install-recommends ca-certificates curl unzip gnupg &&     curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg &&     echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com bookworm main"       > /etc/apt/sources.list.d/hashicorp.list &&     apt-get update && apt-get install -y --no-install-recommends terraform &&     curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh &&     apt-get purge -y curl unzip gnupg && apt-get autoremove -y &&     rm -rf /var/lib/apt/lists/*
+#12 sha256:a2bab25dd74dd4bab9d86d2df53ba27fe19e59b82db916e5cd0c705edb0f5f82
+#12 0.414 Hit:1 http://deb.debian.org/debian trixie InRelease
+#12 0.414 Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+#12 0.430 Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
+#12 0.462 Get:4 http://deb.debian.org/debian trixie/main amd64 Packages [9670 kB]
+#12 0.593 Get:5 http://deb.debian.org/debian trixie-updates/main amd64 Packages [5412 B]
+#12 0.594 Get:6 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [104 kB]
+#12 1.558 Fetched 9871 kB in 1s (8186 kB/s)
+#12 1.558 Reading package lists...
+#12 2.596 Reading package lists...
+#12 3.601 Building dependency tree...
+#12 3.884 Reading state information...
+#12 4.442 ca-certificates is already the newest version (20250419).
+#12 4.442 The following additional packages will be installed:
+#12 4.442   dirmngr gnupg-l10n gpg gpg-agent gpgconf gpgsm libassuan9 libbrotli1
+#12 4.443   libcom-err2 libcurl4t64 libgcrypt20 libgnutls30t64 libgpg-error0
+#12 4.443   libgssapi-krb5-2 libidn2-0 libk5crypto3 libkeyutils1 libkrb5-3
+#12 4.443   libkrb5support0 libksba8 libldap2 libnghttp2-14 libnghttp3-9 libnpth0t64
+#12 4.444   libp11-kit0 libpsl5t64 librtmp1 libsasl2-2 libsasl2-modules-db libssh2-1t64
+#12 4.445   libtasn1-6 libunistring5 pinentry-curses
+#12 4.448 Suggested packages:
+#12 4.448   dbus-user-session libpam-systemd pinentry-gnome3 tor gpg-wks-server
+#12 4.448   parcimonie xloadimage scdaemon tpm2daemon rng-tools gnutls-bin krb5-doc
+#12 4.448   krb5-user pinentry-doc zip
+#12 4.448 Recommended packages:
+#12 4.448   bash-completion gnupg-utils gpg-wks-client gpgv libgpg-error-l10n
+#12 4.448   krb5-locales libldap-common publicsuffix libsasl2-modules
+#12 4.718 The following NEW packages will be installed:
+#12 4.719   curl dirmngr gnupg gnupg-l10n gpg gpg-agent gpgconf gpgsm libassuan9
+#12 4.719   libbrotli1 libcom-err2 libcurl4t64 libgcrypt20 libgnutls30t64 libgpg-error0
+#12 4.720   libgssapi-krb5-2 libidn2-0 libk5crypto3 libkeyutils1 libkrb5-3
+#12 4.720   libkrb5support0 libksba8 libldap2 libnghttp2-14 libnghttp3-9 libnpth0t64
+#12 4.720   libp11-kit0 libpsl5t64 librtmp1 libsasl2-2 libsasl2-modules-db libssh2-1t64
+#12 4.721   libtasn1-6 libunistring5 pinentry-curses unzip
+#12 4.778 0 upgraded, 36 newly installed, 0 to remove and 0 not upgraded.
+#12 4.778 Need to get 9148 kB of archives.
+#12 4.778 After this operation, 28.2 MB of additional disk space will be used.
+#12 4.778 Get:1 http://deb.debian.org/debian trixie/main amd64 libbrotli1 amd64 1.1.0-2+b7 [307 kB]
+#12 4.831 Get:2 http://deb.debian.org/debian trixie/main amd64 libkrb5support0 amd64 1.21.3-5 [33.0 kB]
+#12 4.833 Get:3 http://deb.debian.org/debian trixie/main amd64 libcom-err2 amd64 1.47.2-3+b7 [25.0 kB]
+#12 4.835 Get:4 http://deb.debian.org/debian trixie/main amd64 libk5crypto3 amd64 1.21.3-5 [81.5 kB]
+#12 4.836 Get:5 http://deb.debian.org/debian trixie/main amd64 libkeyutils1 amd64 1.6.3-6 [9456 B]
+#12 4.837 Get:6 http://deb.debian.org/debian trixie/main amd64 libkrb5-3 amd64 1.21.3-5 [326 kB]
+#12 4.845 Get:7 http://deb.debian.org/debian trixie/main amd64 libgssapi-krb5-2 amd64 1.21.3-5 [138 kB]
+#12 4.847 Get:8 http://deb.debian.org/debian trixie/main amd64 libunistring5 amd64 1.3-2 [477 kB]
+#12 4.856 Get:9 http://deb.debian.org/debian trixie/main amd64 libidn2-0 amd64 2.3.8-2 [109 kB]
+#12 4.858 Get:10 http://deb.debian.org/debian trixie/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg1-9 [19.8 kB]
+#12 4.859 Get:11 http://deb.debian.org/debian trixie/main amd64 libsasl2-2 amd64 2.1.28+dfsg1-9 [57.5 kB]
+#12 4.861 Get:12 http://deb.debian.org/debian trixie/main amd64 libldap2 amd64 2.6.10+dfsg-1 [194 kB]
+#12 4.863 Get:13 http://deb.debian.org/debian trixie/main amd64 libnghttp2-14 amd64 1.64.0-1.1 [76.0 kB]
+#12 4.864 Get:14 http://deb.debian.org/debian trixie/main amd64 libnghttp3-9 amd64 1.8.0-1 [67.7 kB]
+#12 4.866 Get:15 http://deb.debian.org/debian trixie/main amd64 libpsl5t64 amd64 0.21.2-1.1+b1 [57.2 kB]
+#12 4.867 Get:16 http://deb.debian.org/debian trixie/main amd64 libp11-kit0 amd64 0.25.5-3 [425 kB]
+#12 4.871 Get:17 http://deb.debian.org/debian trixie/main amd64 libtasn1-6 amd64 4.20.0-2 [49.9 kB]
+#12 4.873 Get:18 http://deb.debian.org/debian trixie/main amd64 libgnutls30t64 amd64 3.8.9-3+deb13u1 [1466 kB]
+#12 4.883 Get:19 http://deb.debian.org/debian trixie/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2+b5 [58.8 kB]
+#12 4.885 Get:20 http://deb.debian.org/debian trixie/main amd64 libssh2-1t64 amd64 1.11.1-1 [245 kB]
+#12 4.888 Get:21 http://deb.debian.org/debian trixie/main amd64 libcurl4t64 amd64 8.14.1-2+deb13u2 [391 kB]
+#12 4.891 Get:22 http://deb.debian.org/debian trixie/main amd64 curl amd64 8.14.1-2+deb13u2 [270 kB]
+#12 4.893 Get:23 http://deb.debian.org/debian trixie/main amd64 libgpg-error0 amd64 1.51-4 [82.1 kB]
+#12 4.894 Get:24 http://deb.debian.org/debian trixie/main amd64 libassuan9 amd64 3.0.2-2 [61.5 kB]
+#12 4.895 Get:25 http://deb.debian.org/debian trixie/main amd64 libgcrypt20 amd64 1.11.0-7 [843 kB]
+#12 4.900 Get:26 http://deb.debian.org/debian trixie/main amd64 gpgconf amd64 2.4.7-21+deb13u1+b1 [129 kB]
+#12 4.901 Get:27 http://deb.debian.org/debian trixie/main amd64 libksba8 amd64 1.6.7-2+b1 [136 kB]
+#12 4.902 Get:28 http://deb.debian.org/debian trixie/main amd64 libnpth0t64 amd64 1.8-3 [23.2 kB]
+#12 4.906 Get:29 http://deb.debian.org/debian trixie/main amd64 dirmngr amd64 2.4.7-21+deb13u1+b1 [384 kB]
+#12 4.910 Get:30 http://deb.debian.org/debian trixie/main amd64 gnupg-l10n all 2.4.7-21+deb13u1 [749 kB]
+#12 4.915 Get:31 http://deb.debian.org/debian trixie/main amd64 gpg amd64 2.4.7-21+deb13u1+b1 [634 kB]
+#12 4.920 Get:32 http://deb.debian.org/debian trixie/main amd64 pinentry-curses amd64 1.3.1-2 [86.4 kB]
+#12 4.921 Get:33 http://deb.debian.org/debian trixie/main amd64 gpg-agent amd64 2.4.7-21+deb13u1+b1 [271 kB]
+#12 4.923 Get:34 http://deb.debian.org/debian trixie/main amd64 gpgsm amd64 2.4.7-21+deb13u1+b1 [275 kB]
+#12 4.925 Get:35 http://deb.debian.org/debian trixie/main amd64 gnupg all 2.4.7-21+deb13u1 [417 kB]
+#12 4.928 Get:36 http://deb.debian.org/debian trixie/main amd64 unzip amd64 6.0-29 [173 kB]
+#12 5.163 debconf: unable to initialize frontend: Dialog
+#12 5.164 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#12 5.164 debconf: falling back to frontend: Readline
+#12 5.165 debconf: unable to initialize frontend: Readline
+#12 5.165 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/x86_64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 36.)
+#12 5.165 debconf: falling back to frontend: Teletype
+#12 5.173 debconf: unable to initialize frontend: Teletype
+#12 5.173 debconf: (This frontend requires a controlling tty.)
+#12 5.173 debconf: falling back to frontend: Noninteractive
+#12 7.276 Fetched 9148 kB in 0s (47.9 MB/s)
+#12 7.314 Selecting previously unselected package libbrotli1:amd64.
+(Reading database ... 5645 files and directories currently installed.)
+#12 7.331 Preparing to unpack .../00-libbrotli1_1.1.0-2+b7_amd64.deb ...
+#12 7.339 Unpacking libbrotli1:amd64 (1.1.0-2+b7) ...
+#12 7.396 Selecting previously unselected package libkrb5support0:amd64.
+#12 7.398 Preparing to unpack .../01-libkrb5support0_1.21.3-5_amd64.deb ...
+#12 7.402 Unpacking libkrb5support0:amd64 (1.21.3-5) ...
+#12 7.442 Selecting previously unselected package libcom-err2:amd64.
+#12 7.443 Preparing to unpack .../02-libcom-err2_1.47.2-3+b7_amd64.deb ...
+#12 7.447 Unpacking libcom-err2:amd64 (1.47.2-3+b7) ...
+#12 7.487 Selecting previously unselected package libk5crypto3:amd64.
+#12 7.489 Preparing to unpack .../03-libk5crypto3_1.21.3-5_amd64.deb ...
+#12 7.494 Unpacking libk5crypto3:amd64 (1.21.3-5) ...
+#12 7.542 Selecting previously unselected package libkeyutils1:amd64.
+#12 7.544 Preparing to unpack .../04-libkeyutils1_1.6.3-6_amd64.deb ...
+#12 7.549 Unpacking libkeyutils1:amd64 (1.6.3-6) ...
+#12 7.584 Selecting previously unselected package libkrb5-3:amd64.
+#12 7.586 Preparing to unpack .../05-libkrb5-3_1.21.3-5_amd64.deb ...
+#12 7.590 Unpacking libkrb5-3:amd64 (1.21.3-5) ...
+#12 7.662 Selecting previously unselected package libgssapi-krb5-2:amd64.
+#12 7.664 Preparing to unpack .../06-libgssapi-krb5-2_1.21.3-5_amd64.deb ...
+#12 7.668 Unpacking libgssapi-krb5-2:amd64 (1.21.3-5) ...
+#12 7.719 Selecting previously unselected package libunistring5:amd64.
+#12 7.722 Preparing to unpack .../07-libunistring5_1.3-2_amd64.deb ...
+#12 7.727 Unpacking libunistring5:amd64 (1.3-2) ...
+#12 7.810 Selecting previously unselected package libidn2-0:amd64.
+#12 7.812 Preparing to unpack .../08-libidn2-0_2.3.8-2_amd64.deb ...
+#12 7.817 Unpacking libidn2-0:amd64 (2.3.8-2) ...
+#12 7.865 Selecting previously unselected package libsasl2-modules-db:amd64.
+#12 7.867 Preparing to unpack .../09-libsasl2-modules-db_2.1.28+dfsg1-9_amd64.deb ...
+#12 7.872 Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg1-9) ...
+#12 7.916 Selecting previously unselected package libsasl2-2:amd64.
+#12 7.918 Preparing to unpack .../10-libsasl2-2_2.1.28+dfsg1-9_amd64.deb ...
+#12 7.923 Unpacking libsasl2-2:amd64 (2.1.28+dfsg1-9) ...
+#12 7.974 Selecting previously unselected package libldap2:amd64.
+#12 7.974 Preparing to unpack .../11-libldap2_2.6.10+dfsg-1_amd64.deb ...
+#12 7.977 Unpacking libldap2:amd64 (2.6.10+dfsg-1) ...
+#12 8.038 Selecting previously unselected package libnghttp2-14:amd64.
+#12 8.040 Preparing to unpack .../12-libnghttp2-14_1.64.0-1.1_amd64.deb ...
+#12 8.044 Unpacking libnghttp2-14:amd64 (1.64.0-1.1) ...
+#12 8.089 Selecting previously unselected package libnghttp3-9:amd64.
+#12 8.092 Preparing to unpack .../13-libnghttp3-9_1.8.0-1_amd64.deb ...
+#12 8.097 Unpacking libnghttp3-9:amd64 (1.8.0-1) ...
+#12 8.139 Selecting previously unselected package libpsl5t64:amd64.
+#12 8.139 Preparing to unpack .../14-libpsl5t64_0.21.2-1.1+b1_amd64.deb ...
+#12 8.149 Unpacking libpsl5t64:amd64 (0.21.2-1.1+b1) ...
+#12 8.188 Selecting previously unselected package libp11-kit0:amd64.
+#12 8.191 Preparing to unpack .../15-libp11-kit0_0.25.5-3_amd64.deb ...
+#12 8.196 Unpacking libp11-kit0:amd64 (0.25.5-3) ...
+#12 8.263 Selecting previously unselected package libtasn1-6:amd64.
+#12 8.266 Preparing to unpack .../16-libtasn1-6_4.20.0-2_amd64.deb ...
+#12 8.270 Unpacking libtasn1-6:amd64 (4.20.0-2) ...
+#12 8.319 Selecting previously unselected package libgnutls30t64:amd64.
+#12 8.322 Preparing to unpack .../17-libgnutls30t64_3.8.9-3+deb13u1_amd64.deb ...
+#12 8.327 Unpacking libgnutls30t64:amd64 (3.8.9-3+deb13u1) ...
+#12 8.434 Selecting previously unselected package librtmp1:amd64.
+#12 8.437 Preparing to unpack .../18-librtmp1_2.4+20151223.gitfa8646d.1-2+b5_amd64.deb ...
+#12 8.441 Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b5) ...
+#12 8.485 Selecting previously unselected package libssh2-1t64:amd64.
+#12 8.487 Preparing to unpack .../19-libssh2-1t64_1.11.1-1_amd64.deb ...
+#12 8.491 Unpacking libssh2-1t64:amd64 (1.11.1-1) ...
+#12 8.544 Selecting previously unselected package libcurl4t64:amd64.
+#12 8.547 Preparing to unpack .../20-libcurl4t64_8.14.1-2+deb13u2_amd64.deb ...
+#12 8.551 Unpacking libcurl4t64:amd64 (8.14.1-2+deb13u2) ...
+#12 8.611 Selecting previously unselected package curl.
+#12 8.613 Preparing to unpack .../21-curl_8.14.1-2+deb13u2_amd64.deb ...
+#12 8.618 Unpacking curl (8.14.1-2+deb13u2) ...
+#12 8.677 Selecting previously unselected package libgpg-error0:amd64.
+#12 8.679 Preparing to unpack .../22-libgpg-error0_1.51-4_amd64.deb ...
+#12 8.684 Unpacking libgpg-error0:amd64 (1.51-4) ...
+#12 8.733 Selecting previously unselected package libassuan9:amd64.
+#12 8.735 Preparing to unpack .../23-libassuan9_3.0.2-2_amd64.deb ...
+#12 8.739 Unpacking libassuan9:amd64 (3.0.2-2) ...
+#12 8.787 Selecting previously unselected package libgcrypt20:amd64.
+#12 8.789 Preparing to unpack .../24-libgcrypt20_1.11.0-7_amd64.deb ...
+#12 8.793 Unpacking libgcrypt20:amd64 (1.11.0-7) ...
+#12 8.870 Selecting previously unselected package gpgconf.
+#12 8.872 Preparing to unpack .../25-gpgconf_2.4.7-21+deb13u1+b1_amd64.deb ...
+#12 8.877 Unpacking gpgconf (2.4.7-21+deb13u1+b1) ...
+#12 8.931 Selecting previously unselected package libksba8:amd64.
+#12 8.934 Preparing to unpack .../26-libksba8_1.6.7-2+b1_amd64.deb ...
+#12 8.939 Unpacking libksba8:amd64 (1.6.7-2+b1) ...
+#12 8.987 Selecting previously unselected package libnpth0t64:amd64.
+#12 8.990 Preparing to unpack .../27-libnpth0t64_1.8-3_amd64.deb ...
+#12 8.994 Unpacking libnpth0t64:amd64 (1.8-3) ...
+#12 9.038 Selecting previously unselected package dirmngr.
+#12 9.040 Preparing to unpack .../28-dirmngr_2.4.7-21+deb13u1+b1_amd64.deb ...
+#12 9.059 Unpacking dirmngr (2.4.7-21+deb13u1+b1) ...
+#12 9.123 Selecting previously unselected package gnupg-l10n.
+#12 9.125 Preparing to unpack .../29-gnupg-l10n_2.4.7-21+deb13u1_all.deb ...
+#12 9.129 Unpacking gnupg-l10n (2.4.7-21+deb13u1) ...
+#12 9.232 Selecting previously unselected package gpg.
+#12 9.235 Preparing to unpack .../30-gpg_2.4.7-21+deb13u1+b1_amd64.deb ...
+#12 9.238 Unpacking gpg (2.4.7-21+deb13u1+b1) ...
+#12 9.321 Selecting previously unselected package pinentry-curses.
+#12 9.323 Preparing to unpack .../31-pinentry-curses_1.3.1-2_amd64.deb ...
+#12 9.327 Unpacking pinentry-curses (1.3.1-2) ...
+#12 9.374 Selecting previously unselected package gpg-agent.
+#12 9.376 Preparing to unpack .../32-gpg-agent_2.4.7-21+deb13u1+b1_amd64.deb ...
+#12 9.380 Unpacking gpg-agent (2.4.7-21+deb13u1+b1) ...
+#12 9.440 Selecting previously unselected package gpgsm.
+#12 9.441 Preparing to unpack .../33-gpgsm_2.4.7-21+deb13u1+b1_amd64.deb ...
+#12 9.445 Unpacking gpgsm (2.4.7-21+deb13u1+b1) ...
+#12 9.498 Selecting previously unselected package gnupg.
+#12 9.500 Preparing to unpack .../34-gnupg_2.4.7-21+deb13u1_all.deb ...
+#12 9.503 Unpacking gnupg (2.4.7-21+deb13u1) ...
+#12 9.566 Selecting previously unselected package unzip.
+#12 9.569 Preparing to unpack .../35-unzip_6.0-29_amd64.deb ...
+#12 9.574 Unpacking unzip (6.0-29) ...
+#12 9.648 Setting up libnpth0t64:amd64 (1.8-3) ...
+#12 9.660 Setting up libkeyutils1:amd64 (1.6.3-6) ...
+#12 9.672 Setting up libgpg-error0:amd64 (1.51-4) ...
+#12 9.686 Setting up unzip (6.0-29) ...
+#12 9.698 Setting up libbrotli1:amd64 (1.1.0-2+b7) ...
+#12 9.710 Setting up libnghttp2-14:amd64 (1.64.0-1.1) ...
+#12 9.724 Setting up libgcrypt20:amd64 (1.11.0-7) ...
+#12 9.738 Setting up libcom-err2:amd64 (1.47.2-3+b7) ...
+#12 9.751 Setting up libkrb5support0:amd64 (1.21.3-5) ...
+#12 9.763 Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg1-9) ...
+#12 9.772 Setting up gnupg-l10n (2.4.7-21+deb13u1) ...
+#12 9.783 Setting up libp11-kit0:amd64 (0.25.5-3) ...
+#12 9.794 Setting up libunistring5:amd64 (1.3-2) ...
+#12 9.805 Setting up libk5crypto3:amd64 (1.21.3-5) ...
+#12 9.817 Setting up libsasl2-2:amd64 (2.1.28+dfsg1-9) ...
+#12 9.829 Setting up libnghttp3-9:amd64 (1.8.0-1) ...
+#12 9.842 Setting up libassuan9:amd64 (3.0.2-2) ...
+#12 9.853 Setting up gpgconf (2.4.7-21+deb13u1+b1) ...
+#12 9.864 Setting up libtasn1-6:amd64 (4.20.0-2) ...
+#12 9.876 Setting up libkrb5-3:amd64 (1.21.3-5) ...
+#12 9.886 Setting up libssh2-1t64:amd64 (1.11.1-1) ...
+#12 9.898 Setting up libldap2:amd64 (2.6.10+dfsg-1) ...
+#12 9.911 Setting up libksba8:amd64 (1.6.7-2+b1) ...
+#12 9.923 Setting up pinentry-curses (1.3.1-2) ...
+#12 9.947 Setting up gpg-agent (2.4.7-21+deb13u1+b1) ...
+#12 10.65 Setting up gpgsm (2.4.7-21+deb13u1+b1) ...
+#12 10.66 Setting up libidn2-0:amd64 (2.3.8-2) ...
+#12 10.67 Setting up libgssapi-krb5-2:amd64 (1.21.3-5) ...
+#12 10.69 Setting up gpg (2.4.7-21+deb13u1+b1) ...
+#12 10.87 Setting up libgnutls30t64:amd64 (3.8.9-3+deb13u1) ...
+#12 10.88 Setting up libpsl5t64:amd64 (0.21.2-1.1+b1) ...
+#12 10.89 Setting up dirmngr (2.4.7-21+deb13u1+b1) ...
+#12 11.09 Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b5) ...
+#12 11.10 Setting up gnupg (2.4.7-21+deb13u1) ...
+#12 11.11 Setting up libcurl4t64:amd64 (8.14.1-2+deb13u2) ...
+#12 11.12 Setting up curl (8.14.1-2+deb13u2) ...
+#12 11.14 Processing triggers for libc-bin (2.41-12+deb13u1) ...
+#12 11.39 Hit:1 http://deb.debian.org/debian trixie InRelease
+#12 11.39 Hit:2 http://deb.debian.org/debian trixie-updates InRelease
+#12 11.40 Hit:3 http://deb.debian.org/debian-security trixie-security InRelease
+#12 11.41 Get:4 https://apt.releases.hashicorp.com bookworm InRelease [12.9 kB]
+#12 11.47 Get:5 https://apt.releases.hashicorp.com bookworm/main amd64 Packages [220 kB]
+#12 11.63 Fetched 233 kB in 0s (776 kB/s)
+#12 11.63 Reading package lists...
+#12 12.62 Reading package lists...
+#12 13.61 Building dependency tree...
+#12 13.83 Reading state information...
+#12 14.25 The following additional packages will be installed:
+#12 14.25   git git-man libcurl3t64-gnutls liberror-perl libexpat1 libgdbm-compat4t64
+#12 14.25   libngtcp2-16 libngtcp2-crypto-gnutls8 libperl5.40 perl perl-modules-5.40
+#12 14.26 Suggested packages:
+#12 14.26   gettext-base git-doc git-email git-gui gitk gitweb git-cvs git-mediawiki
+#12 14.26   git-svn sensible-utils perl-doc libterm-readline-gnu-perl
+#12 14.26   | libterm-readline-perl-perl make libtap-harness-archive-perl
+#12 14.26 Recommended packages:
+#12 14.26   patch less ssh-client
+#12 14.39 The following NEW packages will be installed:
+#12 14.39   git git-man libcurl3t64-gnutls liberror-perl libexpat1 libgdbm-compat4t64
+#12 14.39   libngtcp2-16 libngtcp2-crypto-gnutls8 libperl5.40 perl perl-modules-5.40
+#12 14.39   terraform
+#12 14.49 0 upgraded, 12 newly installed, 0 to remove and 0 not upgraded.
+#12 14.49 Need to get 50.0 MB of archives.
+#12 14.49 After this operation, 207 MB of additional disk space will be used.
+#12 14.49 Get:1 http://deb.debian.org/debian trixie/main amd64 libexpat1 amd64 2.7.1-2 [108 kB]
+#12 14.53 Get:2 http://deb.debian.org/debian trixie/main amd64 perl-modules-5.40 all 5.40.1-6 [3019 kB]
+#12 14.55 Get:3 https://apt.releases.hashicorp.com bookworm/main amd64 terraform amd64 1.14.5-1 [30.6 MB]
+#12 14.60 Get:4 http://deb.debian.org/debian trixie/main amd64 libgdbm-compat4t64 amd64 1.24-2 [50.3 kB]
+#12 14.60 Get:5 http://deb.debian.org/debian trixie/main amd64 libperl5.40 amd64 5.40.1-6 [4341 kB]
+#12 14.63 Get:6 http://deb.debian.org/debian trixie/main amd64 perl amd64 5.40.1-6 [267 kB]
+#12 14.64 Get:7 http://deb.debian.org/debian trixie/main amd64 libngtcp2-16 amd64 1.11.0-1 [131 kB]
+#12 14.64 Get:8 http://deb.debian.org/debian trixie/main amd64 libngtcp2-crypto-gnutls8 amd64 1.11.0-1 [29.3 kB]
+#12 14.65 Get:9 http://deb.debian.org/debian trixie/main amd64 libcurl3t64-gnutls amd64 8.14.1-2+deb13u2 [383 kB]
+#12 14.66 Get:10 http://deb.debian.org/debian trixie/main amd64 liberror-perl all 0.17030-1 [26.9 kB]
+#12 14.66 Get:11 http://deb.debian.org/debian trixie/main amd64 git-man all 1:2.47.3-0+deb13u1 [2205 kB]
+#12 14.69 Get:12 http://deb.debian.org/debian trixie/main amd64 git amd64 1:2.47.3-0+deb13u1 [8862 kB]
+#12 15.14 debconf: unable to initialize frontend: Dialog
+#12 15.14 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#12 15.14 debconf: falling back to frontend: Readline
+#12 15.14 debconf: unable to initialize frontend: Readline
+#12 15.14 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/x86_64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 12.)
+#12 15.14 debconf: falling back to frontend: Teletype
+#12 15.15 debconf: unable to initialize frontend: Teletype
+#12 15.15 debconf: (This frontend requires a controlling tty.)
+#12 15.15 debconf: falling back to frontend: Noninteractive
+#12 16.19 Fetched 50.0 MB in 0s (109 MB/s)
+#12 16.22 Selecting previously unselected package libexpat1:amd64.
+(Reading database ... 6124 files and directories currently installed.)
+#12 16.25 Preparing to unpack .../00-libexpat1_2.7.1-2_amd64.deb ...
+#12 16.26 Unpacking libexpat1:amd64 (2.7.1-2) ...
+#12 16.31 Selecting previously unselected package perl-modules-5.40.
+#12 16.31 Preparing to unpack .../01-perl-modules-5.40_5.40.1-6_all.deb ...
+#12 16.32 Unpacking perl-modules-5.40 (5.40.1-6) ...
+#12 16.99 Selecting previously unselected package libgdbm-compat4t64:amd64.
+#12 17.00 Preparing to unpack .../02-libgdbm-compat4t64_1.24-2_amd64.deb ...
+#12 17.00 Unpacking libgdbm-compat4t64:amd64 (1.24-2) ...
+#12 17.05 Selecting previously unselected package libperl5.40:amd64.
+#12 17.05 Preparing to unpack .../03-libperl5.40_5.40.1-6_amd64.deb ...
+#12 17.06 Unpacking libperl5.40:amd64 (5.40.1-6) ...
+#12 17.55 Selecting previously unselected package perl.
+#12 17.56 Preparing to unpack .../04-perl_5.40.1-6_amd64.deb ...
+#12 17.56 Unpacking perl (5.40.1-6) ...
+#12 17.63 Selecting previously unselected package libngtcp2-16:amd64.
+#12 17.63 Preparing to unpack .../05-libngtcp2-16_1.11.0-1_amd64.deb ...
+#12 17.64 Unpacking libngtcp2-16:amd64 (1.11.0-1) ...
+#12 17.69 Selecting previously unselected package libngtcp2-crypto-gnutls8:amd64.
+#12 17.69 Preparing to unpack .../06-libngtcp2-crypto-gnutls8_1.11.0-1_amd64.deb ...
+#12 17.70 Unpacking libngtcp2-crypto-gnutls8:amd64 (1.11.0-1) ...
+#12 17.74 Selecting previously unselected package libcurl3t64-gnutls:amd64.
+#12 17.75 Preparing to unpack .../07-libcurl3t64-gnutls_8.14.1-2+deb13u2_amd64.deb ...
+#12 17.75 Unpacking libcurl3t64-gnutls:amd64 (8.14.1-2+deb13u2) ...
+#12 17.82 Selecting previously unselected package liberror-perl.
+#12 17.82 Preparing to unpack .../08-liberror-perl_0.17030-1_all.deb ...
+#12 17.82 Unpacking liberror-perl (0.17030-1) ...
+#12 17.86 Selecting previously unselected package git-man.
+#12 17.86 Preparing to unpack .../09-git-man_1%3a2.47.3-0+deb13u1_all.deb ...
+#12 17.86 Unpacking git-man (1:2.47.3-0+deb13u1) ...
+#12 17.97 Selecting previously unselected package git.
+#12 17.98 Preparing to unpack .../10-git_1%3a2.47.3-0+deb13u1_amd64.deb ...
+#12 17.99 Unpacking git (1:2.47.3-0+deb13u1) ...
+#12 ...
+#6 [builder 5/7] RUN pip install --no-cache-dir       -r requirements.txt       -r frontend/requirements.txt
+#6 sha256:e1673e9f77995fb38eb0269cf098fd4a2cd928396f2ea903850b7f27adf748d9
+#6 7.693 Collecting pyiceberg>=0.10.0 (from storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 7.709   Downloading pyiceberg-0.11.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (4.8 kB)
+#6 7.799 Collecting pyjwt>=2.10.1 (from pyjwt[crypto]>=2.10.1->supabase-auth==2.28.0->supabase->-r requirements.txt (line 6))
+#6 7.814   Downloading pyjwt-2.11.0-py3-none-any.whl.metadata (4.0 kB)
+#6 7.858 Collecting strenum>=0.4.15 (from supabase-functions==2.28.0->supabase->-r requirements.txt (line 6))
+#6 7.875   Downloading StrEnum-0.4.15-py3-none-any.whl.metadata (5.3 kB)
+#6 8.069 Collecting google-api-core!=2.0.*,!=2.1.*,!=2.10.*,!=2.2.*,!=2.3.*,!=2.4.*,!=2.5.*,!=2.6.*,!=2.7.*,!=2.8.*,!=2.9.*,<3.0.0,>=1.34.1 (from google-api-core[grpc]!=2.0.*,!=2.1.*,!=2.10.*,!=2.2.*,!=2.3.*,!=2.4.*,!=2.5.*,!=2.6.*,!=2.7.*,!=2.8.*,!=2.9.*,<3.0.0,>=1.34.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 8.085   Downloading google_api_core-2.29.0-py3-none-any.whl.metadata (3.3 kB)
+#6 8.267 Collecting google-auth!=2.24.0,!=2.25.0,<3.0.0,>=2.14.1 (from google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 8.283   Downloading google_auth-2.48.0-py3-none-any.whl.metadata (6.2 kB)
+#6 9.451 Collecting grpcio<2.0.0,>=1.33.2 (from google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 9.466   Downloading grpcio-1.78.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (3.8 kB)
+#6 9.524 Collecting proto-plus<2.0.0,>=1.22.3 (from google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 9.540   Downloading proto_plus-1.27.1-py3-none-any.whl.metadata (2.2 kB)
+#6 10.21 Collecting protobuf!=4.21.0,!=4.21.1,!=4.21.2,!=4.21.3,!=4.21.4,!=4.21.5,<7.0.0,>=3.20.2 (from google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 10.23   Downloading protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl.metadata (593 bytes)
+#6 10.27 Collecting grpc-google-iam-v1<1.0.0,>=0.14.0 (from google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 10.29   Downloading grpc_google_iam_v1-0.14.3-py3-none-any.whl.metadata (9.2 kB)
+#6 10.51 Collecting charset_normalizer<4,>=2 (from requests->-r requirements.txt (line 8))
+#6 10.52   Downloading charset_normalizer-3.4.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (37 kB)
+#6 10.58 Collecting idna<4,>=2.5 (from requests->-r requirements.txt (line 8))
+#6 10.59   Downloading idna-3.11-py3-none-any.whl.metadata (8.4 kB)
+#6 10.71 Collecting urllib3<3,>=1.21.1 (from requests->-r requirements.txt (line 8))
+#6 10.72   Downloading urllib3-2.6.3-py3-none-any.whl.metadata (6.9 kB)
+#6 10.79 Collecting certifi>=2017.4.17 (from requests->-r requirements.txt (line 8))
+#6 10.81   Downloading certifi-2026.1.4-py3-none-any.whl.metadata (2.5 kB)
+#6 11.42 Collecting SQLAlchemy>=1.4.23 (from alembic<2.0,>=1.15.2->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 11.43   Downloading sqlalchemy-2.0.46-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (9.5 kB)
+#6 11.49 Collecting Mako (from alembic<2.0,>=1.15.2->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 11.50   Downloading mako-1.3.10-py3-none-any.whl.metadata (2.9 kB)
+#6 11.61 Collecting googleapis-common-protos<2.0.0,>=1.56.2 (from google-api-core!=2.0.*,!=2.1.*,!=2.10.*,!=2.2.*,!=2.3.*,!=2.4.*,!=2.5.*,!=2.6.*,!=2.7.*,!=2.8.*,!=2.9.*,<3.0.0,>=1.34.1->google-api-core[grpc]!=2.0.*,!=2.1.*,!=2.10.*,!=2.2.*,!=2.3.*,!=2.4.*,!=2.5.*,!=2.6.*,!=2.7.*,!=2.8.*,!=2.9.*,<3.0.0,>=1.34.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 11.63   Downloading googleapis_common_protos-1.72.0-py3-none-any.whl.metadata (9.4 kB)
+#6 11.96 Collecting grpcio-status<2.0.0,>=1.33.2 (from google-api-core[grpc]!=2.0.*,!=2.1.*,!=2.10.*,!=2.2.*,!=2.3.*,!=2.4.*,!=2.5.*,!=2.6.*,!=2.7.*,!=2.8.*,!=2.9.*,<3.0.0,>=1.34.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 11.97   Downloading grpcio_status-1.78.0-py3-none-any.whl.metadata (1.3 kB)
+#6 12.10 Collecting pyasn1-modules>=0.2.1 (from google-auth!=2.24.0,!=2.25.0,<3.0.0,>=2.14.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 12.11   Downloading pyasn1_modules-0.4.2-py3-none-any.whl.metadata (3.5 kB)
+#6 12.77 Collecting cryptography>=38.0.3 (from google-auth!=2.24.0,!=2.25.0,<3.0.0,>=2.14.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 12.79   Downloading cryptography-46.0.5-cp311-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+#6 12.84 Collecting rsa<5,>=3.1.4 (from google-auth!=2.24.0,!=2.25.0,<3.0.0,>=2.14.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 12.86   Downloading rsa-4.9.1-py3-none-any.whl.metadata (5.6 kB)
+#6 13.08 Collecting watchfiles~=1.0 (from granian[reload]>=2.5.5->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 13.10   Downloading watchfiles-1.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.9 kB)
+#6 13.26 Collecting anyio (from httpx<1.0,>=0.23.3->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 13.27   Downloading anyio-4.12.1-py3-none-any.whl.metadata (4.3 kB)
+#6 13.33 Collecting httpcore==1.* (from httpx<1.0,>=0.23.3->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 13.34   Downloading httpcore-1.0.9-py3-none-any.whl.metadata (21 kB)
+#6 13.39 Collecting h11>=0.16 (from httpcore==1.*->httpx<1.0,>=0.23.3->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 13.41   Downloading h11-0.16.0-py3-none-any.whl.metadata (8.3 kB)
+#6 13.63 Collecting annotated-types>=0.6.0 (from pydantic<3.0,>=1.10.21->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 13.65   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+#6 15.29 Collecting pydantic-core==2.41.5 (from pydantic<3.0,>=1.10.21->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 15.30   Downloading pydantic_core-2.41.5-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.3 kB)
+#6 15.34 Collecting typing-inspection>=0.4.2 (from pydantic<3.0,>=1.10.21->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 15.36   Downloading typing_inspection-0.4.2-py3-none-any.whl.metadata (2.6 kB)
+#6 15.45 Collecting bidict>=0.21.0 (from python-socketio<6.0,>=5.12.0->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 15.46   Downloading bidict-0.23.1-py3-none-any.whl.metadata (8.7 kB)
+#6 15.53 Collecting python-engineio>=4.11.0 (from python-socketio<6.0,>=5.12.0->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 15.55   Downloading python_engineio-4.13.1-py3-none-any.whl.metadata (2.3 kB)
+#6 15.68 Collecting markdown-it-py>=2.2.0 (from rich<15,>=13->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 15.70   Downloading markdown_it_py-4.0.0-py3-none-any.whl.metadata (7.3 kB)
+#6 15.77 Collecting pygments<3.0.0,>=2.13.0 (from rich<15,>=13->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 15.78   Downloading pygments-2.19.2-py3-none-any.whl.metadata (2.5 kB)
+#6 16.63 Collecting multidict>=4.0 (from yarl>=1.22.0->supabase->-r requirements.txt (line 6))
+#6 16.65   Downloading multidict-6.7.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (5.3 kB)
+#6 16.78 Collecting propcache>=0.2.1 (from yarl>=1.22.0->supabase->-r requirements.txt (line 6))
+#6 16.79   Downloading propcache-0.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (13 kB)
+#6 17.24 Collecting cffi>=2.0.0 (from cryptography>=38.0.3->google-auth!=2.24.0,!=2.25.0,<3.0.0,>=2.14.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 17.26   Downloading cffi-2.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (2.6 kB)
+#6 17.55 Collecting h2<5,>=3 (from httpx[http2]<0.29,>=0.26->postgrest==2.28.0->supabase->-r requirements.txt (line 6))
+#6 17.56   Downloading h2-4.3.0-py3-none-any.whl.metadata (5.1 kB)
+#6 17.65 Collecting mdurl~=0.1 (from markdown-it-py>=2.2.0->rich<15,>=13->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 17.66   Downloading mdurl-0.1.2-py3-none-any.whl.metadata (1.6 kB)
+#6 17.83 Collecting pyasn1<0.7.0,>=0.6.1 (from pyasn1-modules>=0.2.1->google-auth!=2.24.0,!=2.25.0,<3.0.0,>=2.14.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 17.85   Downloading pyasn1-0.6.2-py3-none-any.whl.metadata (8.4 kB)
+#6 18.07 Collecting mmh3<6.0.0,>=4.0.0 (from pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 18.08   Downloading mmh3-5.2.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl.metadata (14 kB)
+#6 18.47 Collecting strictyaml<2.0.0,>=1.7.0 (from pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 18.49   Downloading strictyaml-1.7.3-py3-none-any.whl.metadata (11 kB)
+#6 ...
+#12 [stage-1 3/9] RUN apt-get update &&     apt-get install -y --no-install-recommends ca-certificates curl unzip gnupg &&     curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg &&     echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com bookworm main"       > /etc/apt/sources.list.d/hashicorp.list &&     apt-get update && apt-get install -y --no-install-recommends terraform &&     curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh &&     apt-get purge -y curl unzip gnupg && apt-get autoremove -y &&     rm -rf /var/lib/apt/lists/*
+#12 sha256:a2bab25dd74dd4bab9d86d2df53ba27fe19e59b82db916e5cd0c705edb0f5f82
+#12 18.69 Selecting previously unselected package terraform.
+#12 18.69 Preparing to unpack .../11-terraform_1.14.5-1_amd64.deb ...
+#12 18.70 Unpacking terraform (1.14.5-1) ...
+#12 19.69 Setting up libexpat1:amd64 (2.7.1-2) ...
+#12 19.71 Setting up libgdbm-compat4t64:amd64 (1.24-2) ...
+#12 19.72 Setting up perl-modules-5.40 (5.40.1-6) ...
+#12 19.73 Setting up git-man (1:2.47.3-0+deb13u1) ...
+#12 19.74 Setting up libngtcp2-16:amd64 (1.11.0-1) ...
+#12 19.75 Setting up libngtcp2-crypto-gnutls8:amd64 (1.11.0-1) ...
+#12 19.77 Setting up libcurl3t64-gnutls:amd64 (8.14.1-2+deb13u2) ...
+#12 19.78 Setting up libperl5.40:amd64 (5.40.1-6) ...
+#12 19.79 Setting up perl (5.40.1-6) ...
+#12 19.81 Setting up liberror-perl (0.17030-1) ...
+#12 19.82 Setting up git (1:2.47.3-0+deb13u1) ...
+#12 19.84 Setting up terraform (1.14.5-1) ...
+#12 19.86 Processing triggers for libc-bin (2.41-12+deb13u1) ...
+#12 20.03 Downloading version latest of infracost-linux-amd64...
+#12 20.72 
+#12 21.12 Validating checksum for infracost-linux-amd64...
+#12 21.65 
+#12 22.62 Moving /tmp/infracost-linux-amd64 to /usr/local/bin/infracost (you might be asked for your password due to sudo)
+#12 22.63 
+#12 23.11 Completed installing Infracost v0.10.43
+#12 23.12 Reading package lists...
+#12 24.21 Building dependency tree...
+#12 ...
+#6 [builder 5/7] RUN pip install --no-cache-dir       -r requirements.txt       -r frontend/requirements.txt
+#6 sha256:e1673e9f77995fb38eb0269cf098fd4a2cd928396f2ea903850b7f27adf748d9
+#6 18.65 Collecting fsspec>=2023.1.0 (from pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 18.66   Downloading fsspec-2026.2.0-py3-none-any.whl.metadata (10 kB)
+#6 18.76 Collecting pyparsing<4.0.0,>=3.1.0 (from pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 18.78   Downloading pyparsing-3.3.2-py3-none-any.whl.metadata (5.8 kB)
+#6 18.84 Collecting tenacity<10.0.0,>=8.2.3 (from pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 18.86   Downloading tenacity-9.1.4-py3-none-any.whl.metadata (1.2 kB)
+#6 19.00 Collecting pyroaring<2.0.0,>=1.0.0 (from pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 19.02   Downloading pyroaring-1.0.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (10 kB)
+#6 19.09 Collecting cachetools<7.0,>=5.5 (from pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 19.10   Downloading cachetools-6.2.6-py3-none-any.whl.metadata (5.6 kB)
+#6 19.31 Collecting zstandard<1.0.0,>=0.13.0 (from pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 19.33   Downloading zstandard-0.25.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl.metadata (3.3 kB)
+#6 19.50 Collecting simple-websocket>=0.10.0 (from python-engineio>=4.11.0->python-socketio<6.0,>=5.12.0->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 19.52   Downloading simple_websocket-1.1.0-py3-none-any.whl.metadata (1.5 kB)
+#6 19.86 Collecting greenlet>=1 (from SQLAlchemy>=1.4.23->alembic<2.0,>=1.15.2->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 19.88   Downloading greenlet-3.3.1-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (3.7 kB)
+#6 20.10 Collecting MarkupSafe>=0.9.2 (from Mako->alembic<2.0,>=1.15.2->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 20.11   Downloading markupsafe-3.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl.metadata (2.7 kB)
+#6 20.19 Collecting pycparser (from cffi>=2.0.0->cryptography>=38.0.3->google-auth!=2.24.0,!=2.25.0,<3.0.0,>=2.14.1->google-cloud-secret-manager->-r requirements.txt (line 7))
+#6 20.20   Downloading pycparser-3.0-py3-none-any.whl.metadata (8.2 kB)
+#6 20.45 Collecting hyperframe<7,>=6.1 (from h2<5,>=3->httpx[http2]<0.29,>=0.26->postgrest==2.28.0->supabase->-r requirements.txt (line 6))
+#6 20.46   Downloading hyperframe-6.1.0-py3-none-any.whl.metadata (4.3 kB)
+#6 20.49 Collecting hpack<5,>=4.1 (from h2<5,>=3->httpx[http2]<0.29,>=0.26->postgrest==2.28.0->supabase->-r requirements.txt (line 6))
+#6 20.50   Downloading hpack-4.1.0-py3-none-any.whl.metadata (4.6 kB)
+#6 20.70 Collecting wsproto (from simple-websocket>=0.10.0->python-engineio>=4.11.0->python-socketio<6.0,>=5.12.0->reflex>=0.6.0->-r requirements.txt (line 2))
+#6 20.72   Downloading wsproto-1.3.2-py3-none-any.whl.metadata (5.2 kB)
+#6 20.77 Collecting python-dateutil>=2.6.0 (from strictyaml<2.0.0,>=1.7.0->pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 20.79   Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+#6 20.96 Collecting six>=1.5 (from python-dateutil>=2.6.0->strictyaml<2.0.0,>=1.7.0->pyiceberg>=0.10.0->storage3==2.28.0->supabase->-r requirements.txt (line 6))
+#6 20.98   Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+#6 21.10 Downloading reflex-0.8.26-py3-none-any.whl (814 kB)
+#6 21.13    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 814.9/814.9 kB 32.0 MB/s eta 0:00:00
+#6 21.14 Downloading python_dotenv-1.2.1-py3-none-any.whl (21 kB)
+#6 21.16 Downloading supabase-2.28.0-py3-none-any.whl (16 kB)
+#6 21.17 Downloading postgrest-2.28.0-py3-none-any.whl (22 kB)
+#6 21.19 Downloading realtime-2.28.0-py3-none-any.whl (22 kB)
+#6 21.21 Downloading storage3-2.28.0-py3-none-any.whl (28 kB)
+#6 21.22 Downloading supabase_auth-2.28.0-py3-none-any.whl (48 kB)
+#6 21.23    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 48.5/48.5 kB 156.1 MB/s eta 0:00:00
+#6 21.24 Downloading supabase_functions-2.28.0-py3-none-any.whl (8.8 kB)
+#6 21.25 Downloading google_cloud_secret_manager-2.26.0-py3-none-any.whl (223 kB)
+#6 21.26    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 223.6/223.6 kB 186.2 MB/s eta 0:00:00
+#6 21.27 Downloading requests-2.32.5-py3-none-any.whl (64 kB)
+#6 21.28    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 64.7/64.7 kB 162.5 MB/s eta 0:00:00
+#6 21.29 Downloading alembic-1.18.4-py3-none-any.whl (263 kB)
+#6 21.30    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 263.9/263.9 kB 186.6 MB/s eta 0:00:00
+#6 21.31 Downloading certifi-2026.1.4-py3-none-any.whl (152 kB)
+#6 21.31    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 152.9/152.9 kB 181.2 MB/s eta 0:00:00
+#6 21.33 Downloading charset_normalizer-3.4.4-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (151 kB)
+#6 21.33    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 151.6/151.6 kB 178.1 MB/s eta 0:00:00
+#6 21.35 Downloading click-8.3.1-py3-none-any.whl (108 kB)
+#6 21.35    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 108.3/108.3 kB 177.1 MB/s eta 0:00:00
+#6 21.37 Downloading google_api_core-2.29.0-py3-none-any.whl (173 kB)
+#6 21.37    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 173.9/173.9 kB 171.6 MB/s eta 0:00:00
+#6 21.39 Downloading google_auth-2.48.0-py3-none-any.whl (236 kB)
+#6 21.39    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 236.5/236.5 kB 181.5 MB/s eta 0:00:00
+#6 21.41 Downloading granian-2.7.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (6.9 MB)
+#6 21.47    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.9/6.9 MB 108.6 MB/s eta 0:00:00
+#6 21.49 Downloading grpc_google_iam_v1-0.14.3-py3-none-any.whl (32 kB)
+#6 21.50 Downloading grpcio-1.78.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (6.7 MB)
+#6 21.55    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.7/6.7 MB 157.8 MB/s eta 0:00:00
+#6 21.57 Downloading httpx-0.28.1-py3-none-any.whl (73 kB)
+#6 21.57    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 73.5/73.5 kB 146.3 MB/s eta 0:00:00
+#6 21.59 Downloading httpcore-1.0.9-py3-none-any.whl (78 kB)
+#6 21.59    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 78.8/78.8 kB 156.8 MB/s eta 0:00:00
+#6 21.60 Downloading idna-3.11-py3-none-any.whl (71 kB)
+#6 21.61    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 71.0/71.0 kB 129.8 MB/s eta 0:00:00
+#6 21.62 Downloading packaging-25.0-py3-none-any.whl (66 kB)
+#6 21.63    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 66.5/66.5 kB 114.9 MB/s eta 0:00:00
+#6 21.64 Downloading platformdirs-4.5.1-py3-none-any.whl (18 kB)
+#6 21.66 Downloading proto_plus-1.27.1-py3-none-any.whl (50 kB)
+#6 21.66    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 50.5/50.5 kB 122.1 MB/s eta 0:00:00
+#6 21.68 Downloading protobuf-6.33.5-cp39-abi3-manylinux2014_x86_64.whl (323 kB)
+#6 21.69    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 323.5/323.5 kB 147.9 MB/s eta 0:00:00
+#6 21.70 Downloading pydantic-2.12.5-py3-none-any.whl (463 kB)
+#6 21.71    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 463.6/463.6 kB 168.4 MB/s eta 0:00:00
+#6 21.73 Downloading pydantic_core-2.41.5-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+#6 21.75    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 186.7 MB/s eta 0:00:00
+#6 21.76 Downloading python_multipart-0.0.22-py3-none-any.whl (24 kB)
+#6 21.78 Downloading python_socketio-5.16.1-py3-none-any.whl (82 kB)
+#6 21.79    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 82.1/82.1 kB 137.5 MB/s eta 0:00:00
+#6 21.80 Downloading redis-7.1.1-py3-none-any.whl (356 kB)
+#6 21.81    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 356.1/356.1 kB 161.4 MB/s eta 0:00:00
+#6 21.83 Downloading reflex_hosting_cli-0.1.61-py3-none-any.whl (45 kB)
+#6 21.83    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 45.3/45.3 kB 120.1 MB/s eta 0:00:00
+#6 21.85 Downloading rich-14.3.2-py3-none-any.whl (309 kB)
+#6 21.85    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 310.0/310.0 kB 169.7 MB/s eta 0:00:00
+#6 21.87 Downloading sqlmodel-0.0.33-py3-none-any.whl (27 kB)
+#6 21.89 Downloading starlette-0.52.1-py3-none-any.whl (74 kB)
+#6 21.89    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 74.3/74.3 kB 134.2 MB/s eta 0:00:00
+#6 21.91 Downloading typing_extensions-4.15.0-py3-none-any.whl (44 kB)
+#6 21.91    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.6/44.6 kB 129.1 MB/s eta 0:00:00
+#6 21.93 Downloading urllib3-2.6.3-py3-none-any.whl (131 kB)
+#6 21.93    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 131.6/131.6 kB 165.0 MB/s eta 0:00:00
+#6 21.95 Downloading wrapt-2.1.1-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (113 kB)
+#6 21.95    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 113.9/113.9 kB 153.6 MB/s eta 0:00:00
+#6 21.97 Downloading yarl-1.22.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (365 kB)
+#6 21.98    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 365.8/365.8 kB 168.1 MB/s eta 0:00:00
+#6 21.99 Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+#6 22.01 Downloading anyio-4.12.1-py3-none-any.whl (113 kB)
+#6 22.01    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 113.6/113.6 kB 152.2 MB/s eta 0:00:00
+#6 22.03 Downloading bidict-0.23.1-py3-none-any.whl (32 kB)
+#6 22.05 Downloading cryptography-46.0.5-cp311-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+#6 22.08    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 148.9 MB/s eta 0:00:00
+#6 22.10 Downloading deprecation-2.1.0-py2.py3-none-any.whl (11 kB)
+#6 22.11 Downloading googleapis_common_protos-1.72.0-py3-none-any.whl (297 kB)
+#6 22.12    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 297.5/297.5 kB 172.5 MB/s eta 0:00:00
+#6 22.14 Downloading grpcio_status-1.78.0-py3-none-any.whl (14 kB)
+#6 22.15 Downloading markdown_it_py-4.0.0-py3-none-any.whl (87 kB)
+#6 22.16    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 87.3/87.3 kB 150.6 MB/s eta 0:00:00
+#6 22.17 Downloading multidict-6.7.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (246 kB)
+#6 22.18    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 246.3/246.3 kB 143.0 MB/s eta 0:00:00
+#6 22.20 Downloading propcache-0.4.1-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (210 kB)
+#6 22.21    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 210.0/210.0 kB 174.2 MB/s eta 0:00:00
+#6 22.22 Downloading pyasn1_modules-0.4.2-py3-none-any.whl (181 kB)
+#6 22.23    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 181.3/181.3 kB 105.4 MB/s eta 0:00:00
+#6 22.25 Downloading pygments-2.19.2-py3-none-any.whl (1.2 MB)
+#6 22.26    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 161.9 MB/s eta 0:00:00
+#6 22.28 Downloading pyiceberg-0.11.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (720 kB)
+#6 22.29    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 720.9/720.9 kB 179.4 MB/s eta 0:00:00
+#6 22.30 Downloading pyjwt-2.11.0-py3-none-any.whl (28 kB)
+#6 22.32 Downloading python_engineio-4.13.1-py3-none-any.whl (59 kB)
+#6 22.32    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 59.8/59.8 kB 153.8 MB/s eta 0:00:00
+#6 22.34 Downloading rsa-4.9.1-py3-none-any.whl (34 kB)
+#6 22.36 Downloading sqlalchemy-2.0.46-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (3.3 MB)
+#6 22.38    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.3/3.3 MB 148.8 MB/s eta 0:00:00
+#6 22.40 Downloading StrEnum-0.4.15-py3-none-any.whl (8.9 kB)
+#6 22.42 Downloading typing_inspection-0.4.2-py3-none-any.whl (14 kB)
+#6 22.43 Downloading watchfiles-1.1.1-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (456 kB)
+#6 22.44    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 456.1/456.1 kB 213.6 MB/s eta 0:00:00
+#6 22.45 Downloading websockets-15.0.1-cp311-cp311-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (182 kB)
+#6 22.46    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 182.3/182.3 kB 228.5 MB/s eta 0:00:00
+#6 22.47 Downloading mako-1.3.10-py3-none-any.whl (78 kB)
+#6 22.48    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 78.5/78.5 kB 149.8 MB/s eta 0:00:00
+#6 22.49 Downloading cachetools-6.2.6-py3-none-any.whl (11 kB)
+#6 22.51 Downloading cffi-2.0.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (215 kB)
+#6 22.51    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 215.6/215.6 kB 194.1 MB/s eta 0:00:00
+#6 22.53 Downloading fsspec-2026.2.0-py3-none-any.whl (202 kB)
+#6 22.53    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 202.5/202.5 kB 211.2 MB/s eta 0:00:00
+#6 22.55 Downloading greenlet-3.3.1-cp311-cp311-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (590 kB)
+#6 22.56    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 590.3/590.3 kB 237.0 MB/s eta 0:00:00
+#6 22.57 Downloading h11-0.16.0-py3-none-any.whl (37 kB)
+#6 22.59 Downloading h2-4.3.0-py3-none-any.whl (61 kB)
+#6 22.59    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 61.8/61.8 kB 182.8 MB/s eta 0:00:00
+#6 22.61 Downloading markupsafe-3.0.3-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.manylinux_2_28_x86_64.whl (22 kB)
+#6 22.62 Downloading mdurl-0.1.2-py3-none-any.whl (10.0 kB)
+#6 22.64 Downloading mmh3-5.2.0-cp311-cp311-manylinux1_x86_64.manylinux_2_28_x86_64.manylinux_2_5_x86_64.whl (103 kB)
+#6 22.64    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 103.1/103.1 kB 193.8 MB/s eta 0:00:00
+#6 22.66 Downloading pyasn1-0.6.2-py3-none-any.whl (83 kB)
+#6 22.66    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 83.4/83.4 kB 114.6 MB/s eta 0:00:00
+#6 22.68 Downloading pyparsing-3.3.2-py3-none-any.whl (122 kB)
+#6 22.68    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 122.8/122.8 kB 191.6 MB/s eta 0:00:00
+#6 22.70 Downloading pyroaring-1.0.3-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+#6 22.71    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 240.9 MB/s eta 0:00:00
+#6 22.73 Downloading simple_websocket-1.1.0-py3-none-any.whl (13 kB)
+#6 22.74 Downloading strictyaml-1.7.3-py3-none-any.whl (123 kB)
+#6 22.75    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 123.9/123.9 kB 197.5 MB/s eta 0:00:00
+#6 22.76 Downloading tenacity-9.1.4-py3-none-any.whl (28 kB)
+#6 22.78 Downloading zstandard-0.25.0-cp311-cp311-manylinux2014_x86_64.manylinux_2_17_x86_64.whl (5.6 MB)
+#6 22.81    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.6/5.6 MB 229.0 MB/s eta 0:00:00
+#6 22.82 Downloading hpack-4.1.0-py3-none-any.whl (34 kB)
+#6 22.84 Downloading hyperframe-6.1.0-py3-none-any.whl (13 kB)
+#6 22.86 Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+#6 22.86    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 229.9/229.9 kB 157.5 MB/s eta 0:00:00
+#6 22.88 Downloading pycparser-3.0-py3-none-any.whl (48 kB)
+#6 22.88    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 48.2/48.2 kB 105.9 MB/s eta 0:00:00
+#6 22.90 Downloading wsproto-1.3.2-py3-none-any.whl (24 kB)
+#6 22.91 Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+#6 23.91 Installing collected packages: strenum, pyroaring, zstandard, wrapt, websockets, urllib3, typing-extensions, tenacity, six, redis, python-multipart, python-dotenv, pyparsing, pyjwt, pygments, pycparser, pyasn1, protobuf, propcache, platformdirs, packaging, multidict, mmh3, mdurl, MarkupSafe, idna, hyperframe, hpack, h11, greenlet, fsspec, click, charset_normalizer, certifi, cachetools, bidict, annotated-types, yarl, wsproto, typing-inspection, SQLAlchemy, rsa, requests, python-dateutil, pydantic-core, pyasn1-modules, proto-plus, markdown-it-py, Mako, httpcore, h2, grpcio, granian, googleapis-common-protos, deprecation, cffi, anyio, watchfiles, strictyaml, starlette, simple-websocket, rich, pydantic, httpx, grpcio-status, cryptography, alembic, sqlmodel, reflex-hosting-cli, realtime, python-engineio, pyiceberg, grpc-google-iam-v1, google-auth, supabase-functions, supabase-auth, storage3, python-socketio, postgrest, google-api-core, supabase, reflex, google-cloud-secret-manager
+#6 ...
+#12 [stage-1 3/9] RUN apt-get update &&     apt-get install -y --no-install-recommends ca-certificates curl unzip gnupg &&     curl -fsSL https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp.gpg &&     echo "deb [signed-by=/usr/share/keyrings/hashicorp.gpg] https://apt.releases.hashicorp.com bookworm main"       > /etc/apt/sources.list.d/hashicorp.list &&     apt-get update && apt-get install -y --no-install-recommends terraform &&     curl -fsSL https://raw.githubusercontent.com/infracost/infracost/master/scripts/install.sh | sh &&     apt-get purge -y curl unzip gnupg && apt-get autoremove -y &&     rm -rf /var/lib/apt/lists/*
+#12 sha256:a2bab25dd74dd4bab9d86d2df53ba27fe19e59b82db916e5cd0c705edb0f5f82
+#12 24.21 Building dependency tree...
+#12 24.55 Reading state information...
+#12 25.16 The following packages were automatically installed and are no longer required:
+#12 25.16   dirmngr gnupg-l10n gpg gpg-agent gpgconf gpgsm libassuan9 libcurl4t64
+#12 25.17   libgcrypt20 libgpg-error0 libksba8 libnpth0t64 pinentry-curses
+#12 25.17 Use 'apt autoremove' to remove them.
+#12 25.21 The following packages will be REMOVED:
+#12 25.22   curl* gnupg* unzip*
+#12 25.56 0 upgraded, 0 newly installed, 3 to remove and 0 not upgraded.
+#12 25.56 After this operation, 1381 kB disk space will be freed.
+(Reading database ... 9463 files and directories currently installed.)
+#12 25.59 Removing curl (8.14.1-2+deb13u2) ...
+#12 25.63 Removing gnupg (2.4.7-21+deb13u1) ...
+#12 25.67 Removing unzip (6.0-29) ...
+#12 25.80 Reading package lists...
+#12 26.86 Building dependency tree...
+#12 27.19 Reading state information...
+#12 27.83 The following packages will be REMOVED:
+#12 27.83   dirmngr gnupg-l10n gpg gpg-agent gpgconf gpgsm libassuan9 libcurl4t64
+#12 27.83   libgcrypt20 libgpg-error0 libksba8 libnpth0t64 pinentry-curses
+#12 28.20 0 upgraded, 0 newly installed, 13 to remove and 0 not upgraded.
+#12 28.20 After this operation, 13.7 MB disk space will be freed.
+(Reading database ... 9397 files and directories currently installed.)
+#12 28.23 Removing dirmngr (2.4.7-21+deb13u1+b1) ...
+#12 28.31 Removing gnupg-l10n (2.4.7-21+deb13u1) ...
+#12 28.35 Removing gpg (2.4.7-21+deb13u1+b1) ...
+#12 28.38 Removing gpg-agent (2.4.7-21+deb13u1+b1) ...
+#12 28.42 Removing gpgsm (2.4.7-21+deb13u1+b1) ...
+#12 28.46 Removing gpgconf (2.4.7-21+deb13u1+b1) ...
+#12 28.50 Removing pinentry-curses (1.3.1-2) ...
+#12 28.55 Removing libassuan9:amd64 (3.0.2-2) ...
+#12 28.60 Removing libcurl4t64:amd64 (8.14.1-2+deb13u2) ...
+#12 28.64 Removing libgcrypt20:amd64 (1.11.0-7) ...
+#12 28.69 Removing libksba8:amd64 (1.6.7-2+b1) ...
+#12 28.73 Removing libgpg-error0:amd64 (1.51-4) ...
+#12 28.77 Removing libnpth0t64:amd64 (1.8-3) ...
+#12 28.84 Processing triggers for libc-bin (2.41-12+deb13u1) ...
+#12 DONE 32.1s
+#11 [stage-1 4/9] RUN useradd -m -u 1000 ecoarch
+#11 sha256:e6c3083dc269641c04271e82686392a7934baee08be2fcdefc53c653092fc25b
+#11 DONE 0.4s
+#6 [builder 5/7] RUN pip install --no-cache-dir       -r requirements.txt       -r frontend/requirements.txt
+#6 sha256:e1673e9f77995fb38eb0269cf098fd4a2cd928396f2ea903850b7f27adf748d9
+#6 38.52 Successfully installed Mako-1.3.10 MarkupSafe-3.0.3 SQLAlchemy-2.0.46 alembic-1.18.4 annotated-types-0.7.0 anyio-4.12.1 bidict-0.23.1 cachetools-6.2.6 certifi-2026.1.4 cffi-2.0.0 charset_normalizer-3.4.4 click-8.3.1 cryptography-46.0.5 deprecation-2.1.0 fsspec-2026.2.0 google-api-core-2.29.0 google-auth-2.48.0 google-cloud-secret-manager-2.26.0 googleapis-common-protos-1.72.0 granian-2.7.1 greenlet-3.3.1 grpc-google-iam-v1-0.14.3 grpcio-1.78.0 grpcio-status-1.78.0 h11-0.16.0 h2-4.3.0 hpack-4.1.0 httpcore-1.0.9 httpx-0.28.1 hyperframe-6.1.0 idna-3.11 markdown-it-py-4.0.0 mdurl-0.1.2 mmh3-5.2.0 multidict-6.7.1 packaging-25.0 platformdirs-4.5.1 postgrest-2.28.0 propcache-0.4.1 proto-plus-1.27.1 protobuf-6.33.5 pyasn1-0.6.2 pyasn1-modules-0.4.2 pycparser-3.0 pydantic-2.12.5 pydantic-core-2.41.5 pygments-2.19.2 pyiceberg-0.11.0 pyjwt-2.11.0 pyparsing-3.3.2 pyroaring-1.0.3 python-dateutil-2.9.0.post0 python-dotenv-1.2.1 python-engineio-4.13.1 python-multipart-0.0.22 python-socketio-5.16.1 realtime-2.28.0 redis-7.1.1 reflex-0.8.26 reflex-hosting-cli-0.1.61 requests-2.32.5 rich-14.3.2 rsa-4.9.1 simple-websocket-1.1.0 six-1.17.0 sqlmodel-0.0.33 starlette-0.52.1 storage3-2.28.0 strenum-0.4.15 strictyaml-1.7.3 supabase-2.28.0 supabase-auth-2.28.0 supabase-functions-2.28.0 tenacity-9.1.4 typing-extensions-4.15.0 typing-inspection-0.4.2 urllib3-2.6.3 watchfiles-1.1.1 websockets-15.0.1 wrapt-2.1.1 wsproto-1.3.2 yarl-1.22.0 zstandard-0.25.0
+#6 38.52 WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+#6 38.67 
+#6 38.67 [notice] A new release of pip is available: 24.0 -> 26.0.1
+#6 38.67 [notice] To update, run: pip install --upgrade pip
+#6 DONE 41.5s
+#5 [builder 6/7] COPY . .
+#5 sha256:4dccbccc29f5d9044c8df39d8d918bfc479f67dd553be6887a3b4b3a0175a599
+#5 DONE 1.2s
+#4 [builder 7/7] RUN apt-get update && apt-get install -y --no-install-recommends curl unzip &&     cd /build/frontend && reflex export --frontend-only --no-zip &&     rm -rf /build/frontend/.web/node_modules            /build/frontend/.web/app            /build/frontend/.web/backend            /build/frontend/.web/components            /build/frontend/.web/public            /build/frontend/.web/styles            /build/frontend/.web/utils            /build/frontend/.web/.next            /build/frontend/.web/package*.json &&     pip uninstall -y pip setuptools 2>/dev/null || true
+#4 sha256:38df8f2e926a131779ec555b6b45ae2ba741ba1040b5d6766a80900716dcf967
+#4 0.255 Hit:1 http://deb.debian.org/debian trixie InRelease
+#4 0.257 Get:2 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+#4 0.282 Get:3 http://deb.debian.org/debian-security trixie-security InRelease [43.4 kB]
+#4 0.311 Get:4 http://deb.debian.org/debian trixie/main amd64 Packages [9670 kB]
+#4 0.430 Get:5 http://deb.debian.org/debian trixie-updates/main amd64 Packages [5412 B]
+#4 0.431 Get:6 http://deb.debian.org/debian-security trixie-security/main amd64 Packages [104 kB]
+#4 1.251 Fetched 9871 kB in 1s (9498 kB/s)
+#4 1.251 Reading package lists...
+#4 1.984 Reading package lists...
+#4 2.718 Building dependency tree...
+#4 2.898 Reading state information...
+#4 3.176 The following additional packages will be installed:
+#4 3.176   libbrotli1 libcom-err2 libcurl4t64 libgnutls30t64 libgssapi-krb5-2 libidn2-0
+#4 3.176   libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap2 libnghttp2-14
+#4 3.177   libnghttp3-9 libp11-kit0 libpsl5t64 librtmp1 libsasl2-2 libsasl2-modules-db
+#4 3.178   libssh2-1t64 libtasn1-6 libunistring5
+#4 3.182 Suggested packages:
+#4 3.182   gnutls-bin krb5-doc krb5-user zip
+#4 3.182 Recommended packages:
+#4 3.182   bash-completion krb5-locales libldap-common publicsuffix libsasl2-modules
+#4 3.359 The following NEW packages will be installed:
+#4 3.360   curl libbrotli1 libcom-err2 libcurl4t64 libgnutls30t64 libgssapi-krb5-2
+#4 3.360   libidn2-0 libk5crypto3 libkeyutils1 libkrb5-3 libkrb5support0 libldap2
+#4 3.361   libnghttp2-14 libnghttp3-9 libp11-kit0 libpsl5t64 librtmp1 libsasl2-2
+#4 3.362   libsasl2-modules-db libssh2-1t64 libtasn1-6 libunistring5 unzip
+#4 3.423 0 upgraded, 23 newly installed, 0 to remove and 0 not upgraded.
+#4 3.423 Need to get 5056 kB of archives.
+#4 3.423 After this operation, 15.1 MB of additional disk space will be used.
+#4 3.423 Get:1 http://deb.debian.org/debian trixie/main amd64 libbrotli1 amd64 1.1.0-2+b7 [307 kB]
+#4 3.477 Get:2 http://deb.debian.org/debian trixie/main amd64 libkrb5support0 amd64 1.21.3-5 [33.0 kB]
+#4 3.478 Get:3 http://deb.debian.org/debian trixie/main amd64 libcom-err2 amd64 1.47.2-3+b7 [25.0 kB]
+#4 3.479 Get:4 http://deb.debian.org/debian trixie/main amd64 libk5crypto3 amd64 1.21.3-5 [81.5 kB]
+#4 3.480 Get:5 http://deb.debian.org/debian trixie/main amd64 libkeyutils1 amd64 1.6.3-6 [9456 B]
+#4 3.481 Get:6 http://deb.debian.org/debian trixie/main amd64 libkrb5-3 amd64 1.21.3-5 [326 kB]
+#4 3.492 Get:7 http://deb.debian.org/debian trixie/main amd64 libgssapi-krb5-2 amd64 1.21.3-5 [138 kB]
+#4 3.493 Get:8 http://deb.debian.org/debian trixie/main amd64 libunistring5 amd64 1.3-2 [477 kB]
+#4 3.502 Get:9 http://deb.debian.org/debian trixie/main amd64 libidn2-0 amd64 2.3.8-2 [109 kB]
+#4 3.503 Get:10 http://deb.debian.org/debian trixie/main amd64 libsasl2-modules-db amd64 2.1.28+dfsg1-9 [19.8 kB]
+#4 3.504 Get:11 http://deb.debian.org/debian trixie/main amd64 libsasl2-2 amd64 2.1.28+dfsg1-9 [57.5 kB]
+#4 3.505 Get:12 http://deb.debian.org/debian trixie/main amd64 libldap2 amd64 2.6.10+dfsg-1 [194 kB]
+#4 3.506 Get:13 http://deb.debian.org/debian trixie/main amd64 libnghttp2-14 amd64 1.64.0-1.1 [76.0 kB]
+#4 3.507 Get:14 http://deb.debian.org/debian trixie/main amd64 libnghttp3-9 amd64 1.8.0-1 [67.7 kB]
+#4 3.508 Get:15 http://deb.debian.org/debian trixie/main amd64 libpsl5t64 amd64 0.21.2-1.1+b1 [57.2 kB]
+#4 3.514 Get:16 http://deb.debian.org/debian trixie/main amd64 libp11-kit0 amd64 0.25.5-3 [425 kB]
+#4 3.517 Get:17 http://deb.debian.org/debian trixie/main amd64 libtasn1-6 amd64 4.20.0-2 [49.9 kB]
+#4 3.527 Get:18 http://deb.debian.org/debian trixie/main amd64 libgnutls30t64 amd64 3.8.9-3+deb13u1 [1466 kB]
+#4 3.534 Get:19 http://deb.debian.org/debian trixie/main amd64 librtmp1 amd64 2.4+20151223.gitfa8646d.1-2+b5 [58.8 kB]
+#4 3.535 Get:20 http://deb.debian.org/debian trixie/main amd64 libssh2-1t64 amd64 1.11.1-1 [245 kB]
+#4 3.536 Get:21 http://deb.debian.org/debian trixie/main amd64 libcurl4t64 amd64 8.14.1-2+deb13u2 [391 kB]
+#4 3.538 Get:22 http://deb.debian.org/debian trixie/main amd64 curl amd64 8.14.1-2+deb13u2 [270 kB]
+#4 3.554 Get:23 http://deb.debian.org/debian trixie/main amd64 unzip amd64 6.0-29 [173 kB]
+#4 3.716 debconf: unable to initialize frontend: Dialog
+#4 3.716 debconf: (TERM is not set, so the dialog frontend is not usable.)
+#4 3.716 debconf: falling back to frontend: Readline
+#4 3.717 debconf: unable to initialize frontend: Readline
+#4 3.717 debconf: (Can't locate Term/ReadLine.pm in @INC (you may need to install the Term::ReadLine module) (@INC entries checked: /etc/perl /usr/local/lib/x86_64-linux-gnu/perl/5.40.1 /usr/local/share/perl/5.40.1 /usr/lib/x86_64-linux-gnu/perl5/5.40 /usr/share/perl5 /usr/lib/x86_64-linux-gnu/perl-base /usr/lib/x86_64-linux-gnu/perl/5.40 /usr/share/perl/5.40 /usr/local/lib/site_perl) at /usr/share/perl5/Debconf/FrontEnd/Readline.pm line 8, <STDIN> line 23.)
+#4 3.717 debconf: falling back to frontend: Teletype
+#4 3.723 debconf: unable to initialize frontend: Teletype
+#4 3.723 debconf: (This frontend requires a controlling tty.)
+#4 3.723 debconf: falling back to frontend: Noninteractive
+#4 4.516 Fetched 5056 kB in 0s (29.7 MB/s)
+#4 4.546 Selecting previously unselected package libbrotli1:amd64.
+(Reading database ... 5645 files and directories currently installed.)
+#4 4.554 Preparing to unpack .../00-libbrotli1_1.1.0-2+b7_amd64.deb ...
+#4 4.563 Unpacking libbrotli1:amd64 (1.1.0-2+b7) ...
+#4 4.615 Selecting previously unselected package libkrb5support0:amd64.
+#4 4.617 Preparing to unpack .../01-libkrb5support0_1.21.3-5_amd64.deb ...
+#4 4.622 Unpacking libkrb5support0:amd64 (1.21.3-5) ...
+#4 4.661 Selecting previously unselected package libcom-err2:amd64.
+#4 4.661 Preparing to unpack .../02-libcom-err2_1.47.2-3+b7_amd64.deb ...
+#4 4.665 Unpacking libcom-err2:amd64 (1.47.2-3+b7) ...
+#4 4.700 Selecting previously unselected package libk5crypto3:amd64.
+#4 4.701 Preparing to unpack .../03-libk5crypto3_1.21.3-5_amd64.deb ...
+#4 4.705 Unpacking libk5crypto3:amd64 (1.21.3-5) ...
+#4 4.742 Selecting previously unselected package libkeyutils1:amd64.
+#4 4.743 Preparing to unpack .../04-libkeyutils1_1.6.3-6_amd64.deb ...
+#4 4.747 Unpacking libkeyutils1:amd64 (1.6.3-6) ...
+#4 4.781 Selecting previously unselected package libkrb5-3:amd64.
+#4 4.783 Preparing to unpack .../05-libkrb5-3_1.21.3-5_amd64.deb ...
+#4 4.787 Unpacking libkrb5-3:amd64 (1.21.3-5) ...
+#4 4.844 Selecting previously unselected package libgssapi-krb5-2:amd64.
+#4 4.846 Preparing to unpack .../06-libgssapi-krb5-2_1.21.3-5_amd64.deb ...
+#4 4.850 Unpacking libgssapi-krb5-2:amd64 (1.21.3-5) ...
+#4 4.891 Selecting previously unselected package libunistring5:amd64.
+#4 4.891 Preparing to unpack .../07-libunistring5_1.3-2_amd64.deb ...
+#4 4.895 Unpacking libunistring5:amd64 (1.3-2) ...
+#4 4.958 Selecting previously unselected package libidn2-0:amd64.
+#4 4.959 Preparing to unpack .../08-libidn2-0_2.3.8-2_amd64.deb ...
+#4 4.963 Unpacking libidn2-0:amd64 (2.3.8-2) ...
+#4 5.001 Selecting previously unselected package libsasl2-modules-db:amd64.
+#4 5.001 Preparing to unpack .../09-libsasl2-modules-db_2.1.28+dfsg1-9_amd64.deb ...
+#4 5.005 Unpacking libsasl2-modules-db:amd64 (2.1.28+dfsg1-9) ...
+#4 5.040 Selecting previously unselected package libsasl2-2:amd64.
+#4 5.041 Preparing to unpack .../10-libsasl2-2_2.1.28+dfsg1-9_amd64.deb ...
+#4 5.046 Unpacking libsasl2-2:amd64 (2.1.28+dfsg1-9) ...
+#4 5.083 Selecting previously unselected package libldap2:amd64.
+#4 5.085 Preparing to unpack .../11-libldap2_2.6.10+dfsg-1_amd64.deb ...
+#4 5.089 Unpacking libldap2:amd64 (2.6.10+dfsg-1) ...
+#4 5.134 Selecting previously unselected package libnghttp2-14:amd64.
+#4 5.134 Preparing to unpack .../12-libnghttp2-14_1.64.0-1.1_amd64.deb ...
+#4 5.137 Unpacking libnghttp2-14:amd64 (1.64.0-1.1) ...
+#4 5.181 Selecting previously unselected package libnghttp3-9:amd64.
+#4 5.181 Preparing to unpack .../13-libnghttp3-9_1.8.0-1_amd64.deb ...
+#4 5.185 Unpacking libnghttp3-9:amd64 (1.8.0-1) ...
+#4 5.225 Selecting previously unselected package libpsl5t64:amd64.
+#4 5.227 Preparing to unpack .../14-libpsl5t64_0.21.2-1.1+b1_amd64.deb ...
+#4 5.233 Unpacking libpsl5t64:amd64 (0.21.2-1.1+b1) ...
+#4 5.271 Selecting previously unselected package libp11-kit0:amd64.
+#4 5.271 Preparing to unpack .../15-libp11-kit0_0.25.5-3_amd64.deb ...
+#4 5.276 Unpacking libp11-kit0:amd64 (0.25.5-3) ...
+#4 5.332 Selecting previously unselected package libtasn1-6:amd64.
+#4 5.333 Preparing to unpack .../16-libtasn1-6_4.20.0-2_amd64.deb ...
+#4 5.337 Unpacking libtasn1-6:amd64 (4.20.0-2) ...
+#4 5.377 Selecting previously unselected package libgnutls30t64:amd64.
+#4 5.379 Preparing to unpack .../17-libgnutls30t64_3.8.9-3+deb13u1_amd64.deb ...
+#4 5.384 Unpacking libgnutls30t64:amd64 (3.8.9-3+deb13u1) ...
+#4 5.472 Selecting previously unselected package librtmp1:amd64.
+#4 5.472 Preparing to unpack .../18-librtmp1_2.4+20151223.gitfa8646d.1-2+b5_amd64.deb ...
+#4 5.476 Unpacking librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b5) ...
+#4 5.517 Selecting previously unselected package libssh2-1t64:amd64.
+#4 5.519 Preparing to unpack .../19-libssh2-1t64_1.11.1-1_amd64.deb ...
+#4 5.522 Unpacking libssh2-1t64:amd64 (1.11.1-1) ...
+#4 5.568 Selecting previously unselected package libcurl4t64:amd64.
+#4 5.570 Preparing to unpack .../20-libcurl4t64_8.14.1-2+deb13u2_amd64.deb ...
+#4 5.574 Unpacking libcurl4t64:amd64 (8.14.1-2+deb13u2) ...
+#4 5.623 Selecting previously unselected package curl.
+#4 5.623 Preparing to unpack .../21-curl_8.14.1-2+deb13u2_amd64.deb ...
+#4 5.627 Unpacking curl (8.14.1-2+deb13u2) ...
+#4 5.668 Selecting previously unselected package unzip.
+#4 5.669 Preparing to unpack .../22-unzip_6.0-29_amd64.deb ...
+#4 5.674 Unpacking unzip (6.0-29) ...
+#4 5.726 Setting up libkeyutils1:amd64 (1.6.3-6) ...
+#4 5.739 Setting up unzip (6.0-29) ...
+#4 5.751 Setting up libbrotli1:amd64 (1.1.0-2+b7) ...
+#4 5.761 Setting up libnghttp2-14:amd64 (1.64.0-1.1) ...
+#4 5.772 Setting up libcom-err2:amd64 (1.47.2-3+b7) ...
+#4 5.782 Setting up libkrb5support0:amd64 (1.21.3-5) ...
+#4 5.792 Setting up libsasl2-modules-db:amd64 (2.1.28+dfsg1-9) ...
+#4 5.802 Setting up libp11-kit0:amd64 (0.25.5-3) ...
+#4 5.812 Setting up libunistring5:amd64 (1.3-2) ...
+#4 5.822 Setting up libk5crypto3:amd64 (1.21.3-5) ...
+#4 5.833 Setting up libsasl2-2:amd64 (2.1.28+dfsg1-9) ...
+#4 5.844 Setting up libnghttp3-9:amd64 (1.8.0-1) ...
+#4 5.854 Setting up libtasn1-6:amd64 (4.20.0-2) ...
+#4 5.865 Setting up libkrb5-3:amd64 (1.21.3-5) ...
+#4 5.875 Setting up libssh2-1t64:amd64 (1.11.1-1) ...
+#4 5.888 Setting up libldap2:amd64 (2.6.10+dfsg-1) ...
+#4 5.898 Setting up libidn2-0:amd64 (2.3.8-2) ...
+#4 5.909 Setting up libgssapi-krb5-2:amd64 (1.21.3-5) ...
+#4 5.921 Setting up libgnutls30t64:amd64 (3.8.9-3+deb13u1) ...
+#4 5.932 Setting up libpsl5t64:amd64 (0.21.2-1.1+b1) ...
+#4 5.944 Setting up librtmp1:amd64 (2.4+20151223.gitfa8646d.1-2+b5) ...
+#4 5.958 Setting up libcurl4t64:amd64 (8.14.1-2+deb13u2) ...
+#4 5.972 Setting up curl (8.14.1-2+deb13u2) ...
+#4 5.987 Processing triggers for libc-bin (2.41-12+deb13u1) ...
+#4 6.867 Warning: `reflex.plugins.sitemap.SitemapPlugin` plugin is enabled by default, 
+#4 6.867 but not explicitly added to the config. If you want to use it, please add it to 
+#4 6.867 the `plugins` list in your config inside of `rxconfig.py`. To disable this 
+#4 6.867 plugin, set `disable_plugins` to `['reflex.plugins.sitemap.SitemapPlugin']`.
+#4 6.870 ──────────────────────────── Initializing frontend ─────────────────────────────
+#4 8.527 [16:48:00] Initializing the web directory.                        console.py:231
+#4 9.808 Success: Initialized frontend.
+#4 9.809 ────────────── Compiling production app and preparing for export. ──────────────
+#4 10.11 Warning: `reflex.plugins.sitemap.SitemapPlugin` plugin is enabled by default, 
+#4 10.11 but not explicitly added to the config. If you want to use it, please add it to 
+#4 10.11 the `plugins` list in your config inside of `rxconfig.py`. To disable this 
+#4 10.11 plugin, set `disable_plugins` to `['reflex.plugins.sitemap.SitemapPlugin']`.
+#4 10.22 Warning: Invalid icon tag: alert_triangle. Please use one of the following: 
+#4 10.22 flag_triangle_left, flag_triangle_right, triangle_alert, triangle_dashed, 
+#4 10.22 triangle_right, triangle, badge_alert, book_alert, circle_alert, clock_alert, 
+#4 10.22 ...
+#4 10.22 See full list at https://reflex.dev/docs/library/data-display/icon/#icons-list. 
+#4 10.22 Using 'circle_help' icon instead.
+#4 10.28 Traceback (most recent call last):
+#4 10.28   File "/usr/local/bin/reflex", line 8, in <module>
+#4 10.28     sys.exit(cli())
+#4 10.28              ^^^^^
+#4 10.28   File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1485, in __call__
+#4 10.28     return self.main(*args, **kwargs)
+#4 10.28            ^^^^^^^^^^^^^^^^^^^^^^^^^^
+#4 10.28   File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1406, in main
+#4 10.28     rv = self.invoke(ctx)
+#4 10.28          ^^^^^^^^^^^^^^^^
+#4 10.28   File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1873, in invoke
+#4 10.28     return _process_result(sub_ctx.command.invoke(sub_ctx))
+#4 10.28                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#4 10.28   File "/usr/local/lib/python3.11/site-packages/click/core.py", line 1269, in invoke
+#4 10.28     return ctx.invoke(self.callback, **ctx.params)
+#4 10.29            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/click/core.py", line 824, in invoke
+#4 10.29     return callback(*args, **kwargs)
+#4 10.29            ^^^^^^^^^^^^^^^^^^^^^^^^^
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/reflex.py", line 519, in export
+#4 10.29     export_utils.export(
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/utils/export.py", line 63, in export
+#4 10.29     prerequisites.get_compiled_app(prerender_routes=prerender_routes)
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/utils/prerequisites.py", line 268, in get_compiled_app
+#4 10.29     app._compile(prerender_routes=prerender_routes, dry_run=dry_run, use_rich=use_rich)
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/app.py", line 1248, in _compile
+#4 10.29     self._compile_page(route, save_page=should_compile)
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/app.py", line 878, in _compile_page
+#4 10.29     component = compiler.compile_unevaluated_page(
+#4 10.29                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/compiler/compiler.py", line 806, in compile_unevaluated_page
+#4 10.29     component = into_component(page.component)
+#4 10.29                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/compiler/compiler.py", line 736, in into_component
+#4 10.29     component_called = component()
+#4 10.29                        ^^^^^^^^^^^
+#4 10.29   File "/build/frontend/frontend/frontend.py", line 22, in index
+#4 10.29     _authenticated_app(),
+#4 10.29     ^^^^^^^^^^^^^^^^^^^^
+#4 10.29   File "/build/frontend/frontend/frontend.py", line 148, in _authenticated_app
+#4 10.29     _builder_tab(),
+#4 10.29     ^^^^^^^^^^^^^^
+#4 10.29   File "/build/frontend/frontend/frontend.py", line 230, in _builder_tab
+#4 10.29     deploy_console(),
+#4 10.29     ^^^^^^^^^^^^^^^^
+#4 10.29   File "/build/frontend/frontend/components/logs.py", line 144, in deploy_console
+#4 10.29     rx.timer(
+#4 10.29     ^^^^^^^^
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/__init__.py", line 371, in __getattr__
+#4 10.29     return getattr(name)
+#4 10.29            ^^^^^^^^^^^^^
+#4 10.29   File "/usr/local/lib/python3.11/site-packages/reflex/utils/lazy_loader.py", line 88, in __getattr__
+#4 10.29     raise AttributeError(msg)
+#4 10.29 AttributeError: No reflex attribute timer
+#4 10.29 Happened while evaluating page 'index'
+#4 DONE 11.4s
+#19 [stage-1 5/9] COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+#19 sha256:c199f2326c70c5d56b33f1eae8bea8e2b6ef7f1b5a0a1fae77ff09b960955af2
+#19 DONE 3.4s
+#18 [stage-1 6/9] COPY --from=builder /usr/local/bin /usr/local/bin
+#18 sha256:c73e429b4ec3e9000d78a00270bf7a9082af5d0cc7f993a07c79f18acb8ca0d3
+#18 DONE 0.0s
+#17 [stage-1 7/9] COPY --from=builder --chown=ecoarch:ecoarch /build/src /app/src
+#17 sha256:09fed4c0fda07f0742d56382cdc9502c098ef728cbc02030d3cb7e76f8fb2f39
+#17 DONE 0.1s
+#16 [stage-1 8/9] COPY --from=builder --chown=ecoarch:ecoarch /build/frontend /app/frontend
+#16 sha256:60fe30e6423fcd9caef867c85b97475b823e9895d9a79a99445c687bdeb9d84a
+#16 DONE 0.2s
+#15 [stage-1 9/9] WORKDIR /app/frontend
+#15 sha256:acda00e29c5a345a37c11c8def9046196100d251ff0fb87cfdeaeda244d0121d
+#15 DONE 0.1s
+#20 exporting to image
+#20 sha256:fdacb527799e96869d51eb22016d2a03d396fd01fd9e024c3c57e7b4ac29daf0
+#20 exporting layers
+#20 exporting layers 2.0s done
+#20 writing image sha256:0811fffeba2c8ea49fe0d895e53f9036ddec01627585b0163d471a5197fd8ab2 done
+#20 naming to us-central1-docker.pkg.dev/ecoarch-mvp-1768828854/ecoarch/ecoarch-app:v0.0.19 done
+#20 naming to us-central1-docker.pkg.dev/ecoarch-mvp-1768828854/ecoarch/ecoarch-app:latest done
+#20 DONE 2.0s
+$ docker push "${IMAGE}:${VERSION}"
+The push refers to repository [us-central1-docker.pkg.dev/ecoarch-mvp-1768828854/ecoarch/ecoarch-app]
+5f70bf18a086: Preparing
+9fbaff26591f: Preparing
+37c3f8e01f37: Preparing
+3eef659aa0d4: Preparing
+bb76b20fed31: Preparing
+8cd91c1cdb7d: Preparing
+ba28baa40abf: Preparing
+ee934834170d: Preparing
+b69aea4cac7d: Preparing
+40b88e8d19a2: Preparing
+dfd9efb4ec4c: Preparing
+a8ff6f8cbdfd: Preparing
+ba28baa40abf: Waiting
+ee934834170d: Waiting
+b69aea4cac7d: Waiting
+40b88e8d19a2: Waiting
+dfd9efb4ec4c: Waiting
+a8ff6f8cbdfd: Waiting
+8cd91c1cdb7d: Waiting
+unauthorized: authentication failed
+Uploading artifacts for failed job
+00:02
+Uploading artifacts...
+version.env: found 1 matching artifact files and directories 
+Uploading artifacts as "dotenv" to coordinator... 201 Created  correlation_id=c1cbed0ff0994349b95a5b52117c34aa id=13077813120 responseStatus=201 Created token=6c_JzNpuo
+Cleaning up project directory and file based variables
+00:01
+ERROR: Job failed: exit code 1
