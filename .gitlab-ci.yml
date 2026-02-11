@@ -201,10 +201,16 @@ infracost_analysis:
 # ============================================================
 
 # ── 4a. Cloud Run – Build & Deploy de l'app EcoArch ──────────
+# Nécessite Docker-in-Docker : le job tourne dans un conteneur, sans dind
+# il n'y a pas de daemon Docker pour exécuter "docker build".
 cloud_run_deploy:
   stage: deploy
   image: google/cloud-sdk:slim
+  services:
+    - docker:24-dind
   variables:
+    DOCKER_TLS_CERTDIR: ""       # connexion TCP simple au dind
+    DOCKER_HOST: tcp://docker:2375
     SERVICE_NAME: "ecoarch-app"
     CLOUD_RUN_MEMORY: "1Gi"
     CLOUD_RUN_CPU: "1"
