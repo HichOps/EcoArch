@@ -150,12 +150,7 @@ def governance_dashboard() -> rx.Component:
             width="100%",
             margin_bottom="16px",
         ),
-        # Polling adaptatif de l'audit (GreenOps)
-        rx.timer(
-            milliseconds=State.audit_poll_interval_s * 1000,
-            on_complete=State.load_audit_logs,
-            key=f"audit-poll-{State.audit_poll_interval_s}",
-        ),
+        # Le polling adaptatif est géré par State.start_audit_polling (background event)
         
         # Tableau d'audit avec style Apple
         rx.box(

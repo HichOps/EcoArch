@@ -285,4 +285,8 @@ app = rx.App(
 )
 
 # Enregistrement de la page avec chargement initial des logs
-app.add_page(index, title="EcoArch", on_load=State.load_audit_logs)
+app.add_page(
+    index,
+    title="EcoArch",
+    on_load=[State.load_audit_logs, State.start_audit_polling],
+)

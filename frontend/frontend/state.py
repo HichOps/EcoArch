@@ -7,6 +7,7 @@ Sécurité :
 - Client Supabase singleton (ARCH-3).
 - Logging explicite au lieu de except:pass (ROB-1).
 """
+import asyncio
 import hashlib
 import hmac
 import logging
@@ -571,11 +572,12 @@ class State(rx.State):
             {"message": f"🏁 Deployment {target_id} Complete!", "delay": 0.0},
         ]
 
-        # Stocker le script pour exécution progressive côté frontend
+        # Stocker le script et lancer la boucle background
         self.demo_script = demo_steps
         self.demo_index = 0
         self.demo_audit_id = audit_id
         yield
+        return State.run_demo_loop
 
     def start_destruction(self):
         """Déclenche la destruction via GitLab CI/CD (ou démo si indisponible)."""
@@ -697,6 +699,7 @@ class State(rx.State):
         self.demo_index = 0
         self.demo_audit_id = audit_id
         yield
+        return State.run_demo_loop
 
     def _append_log(self, line: str) -> None:
         """Ajoute une ligne au log avec limite de taille."""
@@ -704,30 +707,40 @@ class State(rx.State):
         if len(self.logs) > 100:
             self.logs.pop(0)
 
-    def advance_demo_step(self) -> None:
-        """Exécute la prochaine étape du script de démo sans bloquer le worker."""
-        if self.deploy_status != "running":
-            return
+    @rx.event(background=True)
+    async def run_demo_loop(self) -> None:
+        """Boucle background qui déroule le script de démo étape par étape."""
+        while True:
+            async with self:
+                if self.deploy_status != "running":
+                    return
 
-        if self.demo_index >= len(self.demo_script):
-            # Fin du script : marquer le succès et mettre à jour l'audit
-            self.deploy_status = "success"
-            self.logs.append("✅ SUCCESS (mode démo)")
-            if self.demo_audit_id is not None:
-                self._update_audit_log(self.demo_audit_id, "SUCCESS")
-            self.is_deploying = False
-            self.load_audit_logs()
-            # Reset du script
-            self.demo_script = []
-            self.demo_index = 0
-            self.demo_audit_id = None
-            return
+                if self.demo_index >= len(self.demo_script):
+                    self.deploy_status = "success"
+                    self.logs.append("✅ SUCCESS (mode démo)")
+                    if self.demo_audit_id is not None:
+                        self._update_audit_log(self.demo_audit_id, "SUCCESS")
+                    self.is_deploying = False
+                    self.load_audit_logs()
+                    self.demo_script = []
+                    self.demo_index = 0
+                    self.demo_audit_id = None
+                    return
 
-        step = self.demo_script[self.demo_index]
-        message = str(step.get("message", ""))
-        if message:
-            self._append_log(message)
-        self.demo_index += 1
+                step = self.demo_script[self.demo_index]
+                message = str(step.get("message", ""))
+                if message:
+                    self._append_log(message)
+                try:
+                    delay_s = float(step.get("delay", 0.5))
+                except (TypeError, ValueError):
+                    delay_s = 0.5
+                delay_s = max(0.0, min(delay_s, 10.0))
+                self.demo_index += 1
+
+            # Sleep en dehors du lock pour ne pas bloquer l'état
+            if delay_s > 0:
+                await asyncio.sleep(delay_s)
 
     def close_console(self) -> None:
         """Ferme la console de déploiement."""
@@ -790,6 +803,27 @@ class State(rx.State):
     audit_logs: list[dict] = []
     audit_no_change_count: int = 0
     audit_poll_interval_s: int = _AUDIT_POLL_INTERVAL_MIN_S
+    _audit_polling_active: bool = False
+
+    @rx.event(background=True)
+    async def start_audit_polling(self) -> None:
+        """Boucle background de polling adaptatif des audit logs."""
+        async with self:
+            if self._audit_polling_active:
+                return
+            self._audit_polling_active = True
+
+        try:
+            while True:
+                async with self:
+                    self.load_audit_logs()
+                    interval = self.audit_poll_interval_s
+                await asyncio.sleep(interval)
+        except Exception:
+            logger.warning("Audit polling loop stopped", exc_info=True)
+        finally:
+            async with self:
+                self._audit_polling_active = False
 
     def load_audit_logs(self) -> None:
         """Charge les logs d'audit depuis Supabase.
@@ -1035,19 +1069,3 @@ class State(rx.State):
             parts.append(self.carbon_equivalence)
         return " ".join(p for p in parts if p)
 
-    @rx.var
-    def next_demo_delay_ms(self) -> int:
-        """Retourne le délai (en ms) avant la prochaine étape de démo."""
-        if self.demo_index >= len(self.demo_script):
-            return 0
-        step = self.demo_script[self.demo_index]
-        try:
-            delay_s = float(step.get("delay", 0.5))
-        except (TypeError, ValueError):
-            delay_s = 0.5
-        # Clamp pour éviter des valeurs aberrantes
-        if delay_s < 0:
-            delay_s = 0.0
-        if delay_s > 10:
-            delay_s = 10.0
-        return int(delay_s * 1000)
