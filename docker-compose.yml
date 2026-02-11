@@ -1,6 +1,10 @@
 # ═══════════════════════════════════════════════════════════════
 # docker-compose.yml – Stack de développement local EcoArch
 # Usage : docker compose up -d
+#
+# Pour l'authentification GCP locale :
+#   gcloud auth application-default login
+#   export GOOGLE_APPLICATION_CREDENTIALS=~/.config/gcloud/application_default_credentials.json
 # ═══════════════════════════════════════════════════════════════
 services:
   ecoarch:
@@ -9,39 +13,14 @@ services:
     restart: unless-stopped
     ports:
       - "3000:3000"   # Frontend Reflex (dev)
-      - "8000:8000"   # Backend FastAPI / WebSocket
+      - "8000:8000"   # Backend API / WebSocket
     env_file:
       - .env
     environment:
-      - REDIS_URL=redis://redis:6379/0
-      - GOOGLE_APPLICATION_CREDENTIALS=/app/gcp-key.json
       - GCP_PROJECT_ID=ecoarch-mvp-1768828854
       - API_URL=http://localhost:8000
-    volumes:
-      - ./gcp-key.json:/app/gcp-key.json:ro
-    depends_on:
-      redis:
-        condition: service_healthy
     networks:
       - ecoarch_net
-
-  redis:
-    image: redis:7-alpine
-    container_name: ecoarch_redis
-    restart: always
-    command: redis-server --appendonly yes
-    volumes:
-      - redis_data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-    networks:
-      - ecoarch_net
-
-volumes:
-  redis_data:
 
 networks:
   ecoarch_net:
