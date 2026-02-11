@@ -6,29 +6,10 @@ from ..state import State
 
 
 def carbon_vs_cost_chart() -> rx.Component:
-    """Graphique comparatif simple Coût ($) vs Empreinte (Sobriety Score)."""
-    # Mapping A–E → 1–5 pour l'affichage
-    footprint_value = rx.cond(
-        State.sobriety_score == "A",
-        1,
-        rx.cond(
-            State.sobriety_score == "B",
-            2,
-            rx.cond(
-                State.sobriety_score == "C",
-                3,
-                rx.cond(
-                    State.sobriety_score == "D",
-                    4,
-                    5,
-                ),
-            ),
-        ),
-    )
-
+    """Graphique comparatif Coût ($) vs Empreinte carbone (kg CO2eq/mois)."""
     data = [
         {"name": "Coût ($)", "value": State.cost},
-        {"name": "Empreinte (A→E)", "value": footprint_value},
+        {"name": "Empreinte (kg CO2eq)", "value": State.total_emissions_kg},
     ]
 
     return rx.box(

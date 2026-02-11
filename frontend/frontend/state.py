@@ -994,6 +994,48 @@ class State(rx.State):
         return f"Économisez environ 30% d'émissions en basculant sur la région {alternative}."
 
     @rx.var
+    def total_emissions_kg(self) -> float:
+        """Émissions totales du panier en kgCO2eq/mois (niveau audit FinOps/GreenOps)."""
+        try:
+            region = self.wizard_answers.get("region", Config.DEFAULT_REGION)
+            return RecommendationEngine.calculate_total_emissions(
+                self.resource_list,
+                region=region,
+            )
+        except Exception:
+            logger.warning("Erreur calcul émissions totales", exc_info=True)
+            return 0.0
+
+    @rx.var
+    def total_emissions_display(self) -> str:
+        """Chaîne affichable pour le poids carbone (ex: 12.5 kg CO2eq / mois)."""
+        kg = self.total_emissions_kg
+        return f"{kg} kg CO2eq / mois" if kg is not None else "— kg CO2eq / mois"
+
+    # Équivalence ~5 km / kg CO2eq pour voiture thermique moyenne
+    KM_PER_KG_CO2EQ = 5.0
+
+    @rx.var
+    def carbon_equivalence(self) -> str:
+        """Contextualisation (ex: équivaut à X km en voiture thermique)."""
+        kg = self.total_emissions_kg
+        if kg is None or kg <= 0:
+            return ""
+        km = int(kg * self.KM_PER_KG_CO2EQ)
+        return f"Équivaut à ~{km} km en voiture thermique."
+
+    @rx.var
+    def green_score_tooltip(self) -> str:
+        """Contenu complet du tooltip du badge Green Score (score + kg CO2eq + équivalence)."""
+        parts = [
+            "Sobriety Score: A = très sobre, E = très gourmand. Basé sur vCPU, RAM et type de stockage.",
+            self.total_emissions_display,
+        ]
+        if self.carbon_equivalence:
+            parts.append(self.carbon_equivalence)
+        return " ".join(p for p in parts if p)
+
+    @rx.var
     def next_demo_delay_ms(self) -> int:
         """Retourne le délai (en ms) avant la prochaine étape de démo."""
         if self.demo_index >= len(self.demo_script):

@@ -15,20 +15,24 @@ ENV_CONFIG = {
     "prod": {"machine": None, "disk": 50, "db_tier": "db-g1-small"},  # machine définie par workload
 }
 
-# Intensité carbone par région (gCO2eq/kWh, catégorisée)
+# Intensité carbone par région (catégorie pour score qualitatif)
 GCP_CARBON_INTENSITY = {
-    # Low carbon
-    "europe-west1": "low",      # Belgique
-    "europe-north1": "low",     # Finlande
-    "europe-west9": "low",      # Paris
-    "northamerica-northeast1": "low",  # Montréal (approx canada-central1)
+    "europe-west1": "low",
+    "europe-north1": "low",
+    "europe-west9": "low",
+    "northamerica-northeast1": "low",
     "canada-central1": "low",
-    # Medium
-    "europe-west4": "medium",   # Pays-Bas
+    "europe-west4": "medium",
     "us-central1": "medium",
-    # High
-    "europe-central2": "high",  # Varsovie
-    "us-east4": "high",         # Virginie
+    "europe-central2": "high",
+    "us-east4": "high",
+}
+
+# Intensité carbone réelle (gCO2eq/kWh) par catégorie – niveau audit FinOps/GreenOps
+GCP_CARBON_G_PER_KWH: dict[str, float] = {
+    "low": 50.0,    # ex: europe-west9 (Paris), nord
+    "medium": 380.0,  # ex: us-central1
+    "high": 700.0,  # ex: europe-central2 (Varsovie)
 }
 
 _REGION_FACTORS = {
@@ -36,6 +40,22 @@ _REGION_FACTORS = {
     "medium": 1.0,
     "high": 1.2,
 }
+
+# Consommation électrique estimée par type d'instance (kWh/mois)
+INSTANCE_KWH_MONTH: dict[str, float] = {
+    "e2-micro": 5.0,
+    "e2-small": 8.0,
+    "e2-medium": 15.0,
+    "e2-standard-2": 25.0,
+    "e2-standard-4": 35.0,
+    "e2-highcpu-2": 15.0,
+    "e2-highmem-2": 18.0,
+    "n1-standard-1": 22.0,
+    "n2-standard-2": 30.0,
+    "n2-standard-4": 45.0,
+    "c2-standard-4": 45.0,
+}
+_DEFAULT_KWH_MONTH = 15.0
 
 # Mapping type d'application -> stack logicielle recommandée
 APP_TYPE_STACKS = {
@@ -138,6 +158,43 @@ class RecommendationEngine:
             "db_version": "POSTGRES_15",
             "display_name": "PostgreSQL (Standard)",
         }
+
+    # ── Consommation & émissions (kgCO2eq) ─────────────────────────
+
+    @staticmethod
+    def _get_kwh_for_machine(machine_type: str) -> float:
+        """Retourne la consommation électrique estimée (kWh/mois) pour un type d'instance."""
+        mt = machine_type.strip().lower()
+        if mt in INSTANCE_KWH_MONTH:
+            return INSTANCE_KWH_MONTH[mt]
+        for key, kwh in INSTANCE_KWH_MONTH.items():
+            if key in mt or mt in key:
+                return kwh
+        return _DEFAULT_KWH_MONTH
+
+    @staticmethod
+    def _total_monthly_kwh(resources: list[dict[str, Any]]) -> float:
+        """Calcule la consommation électrique mensuelle totale (kWh) des instances compute."""
+        total = 0.0
+        for res in resources:
+            if res.get("type") != "compute":
+                continue
+            machine = str(res.get("machine_type", "e2-medium"))
+            total += RecommendationEngine._get_kwh_for_machine(machine)
+        return total
+
+    @staticmethod
+    def calculate_total_emissions(
+        resources: list[dict[str, Any]],
+        region: str = "us-central1",
+    ) -> float:
+        """Retourne les émissions totales en kgCO2eq/mois (niveau audit FinOps/GreenOps)."""
+        total_kwh = RecommendationEngine._total_monthly_kwh(resources)
+        if total_kwh <= 0:
+            return 0.0
+        category = GCP_CARBON_INTENSITY.get(region, "medium")
+        g_per_kwh = GCP_CARBON_G_PER_KWH.get(category, 380.0)
+        return round((total_kwh * g_per_kwh) / 1000.0, 2)
 
     # ── Sobriety / Green Score ─────────────────────────────────────
 

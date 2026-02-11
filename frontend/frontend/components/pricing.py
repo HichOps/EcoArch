@@ -118,7 +118,7 @@ def pricing_block() -> rx.Component:
                         background=f"color-mix(in srgb, {APPLE_GREEN} 6%, var(--gray-1))",
                         border=f"1px solid color-mix(in srgb, {APPLE_GREEN} 24%, transparent)",
                     ),
-                    content="Sobriety Score: A = très sobre, E = très gourmand. Basé sur vCPU, RAM et type de stockage.",
+                    content=State.green_score_tooltip,
                 ),
                 spacing="3",
                 align="center",

@@ -348,3 +348,45 @@ class TestGreenAlternatives:
 
     def test_non_high_region_returns_none(self):
         assert RecommendationEngine.get_green_alternative("us-central1") is None
+
+
+class TestTotalEmissions:
+    """Tests pour le calcul d'émissions en kgCO2eq/mois (audit FinOps/GreenOps)."""
+
+    def test_empty_resources_zero_emissions(self):
+        assert RecommendationEngine.calculate_total_emissions([], "us-central1") == 0.0
+
+    def test_single_e2_micro_low_region(self):
+        # 5 kWh × 50 g/kWh = 250 g = 0.25 kg
+        resources = [{"type": "compute", "machine_type": "e2-micro"}]
+        assert RecommendationEngine.calculate_total_emissions(resources, "europe-west9") == 0.25
+
+    def test_single_e2_medium_medium_region(self):
+        # 15 kWh × 380 g/kWh = 5700 g = 5.7 kg
+        resources = [{"type": "compute", "machine_type": "e2-medium"}]
+        assert RecommendationEngine.calculate_total_emissions(resources, "us-central1") == 5.7
+
+    def test_n2_standard_4_high_region(self):
+        # 45 kWh × 700 g/kWh = 31.5 kg
+        resources = [{"type": "compute", "machine_type": "n2-standard-4"}]
+        assert RecommendationEngine.calculate_total_emissions(resources, "europe-central2") == 31.5
+
+    def test_non_compute_resources_ignored(self):
+        resources = [
+            {"type": "storage", "storage_class": "STANDARD"},
+            {"type": "sql", "db_tier": "db-f1-micro"},
+        ]
+        assert RecommendationEngine.calculate_total_emissions(resources, "us-central1") == 0.0
+
+    def test_multiple_instances_summed(self):
+        # 2× e2-medium = 30 kWh, medium 380 → 11.4 kg
+        resources = [
+            {"type": "compute", "machine_type": "e2-medium"},
+            {"type": "compute", "machine_type": "e2-medium"},
+        ]
+        assert RecommendationEngine.calculate_total_emissions(resources, "us-central1") == 11.4
+
+    def test_unknown_region_uses_medium_intensity(self):
+        resources = [{"type": "compute", "machine_type": "e2-micro"}]
+        # 5 × 380 / 1000 = 1.9
+        assert RecommendationEngine.calculate_total_emissions(resources, "unknown-region") == 1.9
