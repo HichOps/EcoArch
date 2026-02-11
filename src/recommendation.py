@@ -198,40 +198,38 @@ class RecommendationEngine:
 
     # ── Sobriety / Green Score ─────────────────────────────────────
 
+    # Profil vCPU/RAM approximatif par famille de machine GCP
+    _MACHINE_PROFILES: dict[str, tuple[int, int]] = {
+        "e2-micro": (0, 1),
+        "e2-small": (1, 2),
+        "e2-medium": (2, 4),
+    }
+    _DEFAULT_MACHINE_PROFILE: tuple[int, int] = (2, 4)
+
     @staticmethod
-    def calculate_sobriety_score(
-        resources: list[dict[str, Any]],
-        environment: str = "dev",
-        region: str = "us-central1",
-    ) -> str:
-        """Calcule une note de sobriété de A (très sobre) à E (très gourmand).
+    def _machine_profile(machine_type: str) -> tuple[int, int]:
+        """Retourne (vCPU estimé, RAM GB estimée) pour un type d'instance."""
+        mt = machine_type.lower()
+        for prefix, profile in RecommendationEngine._MACHINE_PROFILES.items():
+            if mt.startswith(prefix):
+                return profile
+        if "highcpu" in mt:
+            return 2, 2
+        if "highmem" in mt:
+            return 2, 8
+        if mt.startswith(("n1-", "n2-", "c2-")):
+            return 4, 16
+        return RecommendationEngine._DEFAULT_MACHINE_PROFILE
 
-        Heuristique simple basée sur :
-        - vCPU total estimé (machine_type)
-        - RAM approximative
-        - nombre de VMs et type de storage
-        - bonus de sobriété pour l'environnement 'dev'
+    @staticmethod
+    def _calculate_hardware_impact(resources: list[dict[str, Any]]) -> float:
+        """Calcule l'impact brut basé sur vCPUs, RAM et type de stockage.
+
+        Seuils :
+        - vCPU : ≤2 → 0, ≤4 → 1, ≤8 → 2, >8 → 3
+        - RAM  : ≤8 → 0, ≤32 → 1, >32 → 2
+        - MULTI_REGIONAL storage ajoute +1.0 par bucket
         """
-        if not resources:
-            return "A"
-
-        # Approximation vCPU/RAM par famille de machine
-        def _machine_profile(machine_type: str) -> tuple[int, int]:
-            mt = machine_type.lower()
-            if mt.startswith("e2-micro"):
-                return 0, 1
-            if mt.startswith("e2-small"):
-                return 1, 2
-            if mt.startswith("e2-medium"):
-                return 2, 4
-            if "highcpu" in mt:
-                return 2, 2
-            if "highmem" in mt:
-                return 2, 8
-            if mt.startswith(("n1-", "n2-", "c2-")):
-                return 4, 16
-            return 2, 4
-
         total_vcpu = 0
         total_ram_gb = 0
         storage_penalty = 0.0
@@ -240,53 +238,81 @@ class RecommendationEngine:
             rtype = res.get("type")
             if rtype == "compute":
                 machine = str(res.get("machine_type", "e2-medium"))
-                vcpu, ram = _machine_profile(machine)
+                vcpu, ram = RecommendationEngine._machine_profile(machine)
                 total_vcpu += vcpu
                 total_ram_gb += ram
             elif rtype == "storage":
-                storage_class = str(res.get("storage_class", "STANDARD"))
-                if storage_class == "MULTI_REGIONAL":
+                if str(res.get("storage_class", "STANDARD")) == "MULTI_REGIONAL":
                     storage_penalty += 1.0
 
-        # Score brut basé sur vCPU/ram
-        score = 0.0
+        # Score vCPU
         if total_vcpu <= 2:
-            score += 0
+            score = 0.0
         elif total_vcpu <= 4:
-            score += 1
+            score = 1.0
         elif total_vcpu <= 8:
-            score += 2
+            score = 2.0
         else:
-            score += 3
+            score = 3.0
 
-        if total_ram_gb <= 8:
-            score += 0
-        elif total_ram_gb <= 32:
-            score += 1
-        else:
-            score += 2
+        # Score RAM
+        if total_ram_gb > 32:
+            score += 2.0
+        elif total_ram_gb > 8:
+            score += 1.0
 
-        score += storage_penalty
+        return score + storage_penalty
 
-        # Bonus sobriété pour l'environnement dev
+    @staticmethod
+    def _apply_environmental_modifiers(base_score: float, environment: str) -> float:
+        """Applique le bonus de sobriété pour l'environnement 'dev' (-1 point)."""
         if environment == "dev":
-            score = max(0.0, score - 1.0)
+            return max(0.0, base_score - 1.0)
+        return base_score
 
-        # Facteur d'intensité carbone par région
+    @staticmethod
+    def _apply_regional_factors(score: float, region: str) -> float:
+        """Multiplie le score par le facteur d'intensité carbone régionale.
+
+        Facteurs : low=0.8, medium=1.0, high=1.2
+        """
         category = GCP_CARBON_INTENSITY.get(region, "medium")
         factor = _REGION_FACTORS.get(category, 1.0)
-        score *= factor
+        return score * factor
 
-        # Mapping score -> lettre
-        if score <= 1:
+    @staticmethod
+    def _map_score_to_letter(final_score: float) -> str:
+        """Convertit un score numérique en note de sobriété A→E.
+
+        Seuils : ≤1 → A, ≤2 → B, ≤3 → C, ≤4 → D, >4 → E
+        """
+        if final_score <= 1:
             return "A"
-        if score <= 2:
+        if final_score <= 2:
             return "B"
-        if score <= 3:
+        if final_score <= 3:
             return "C"
-        if score <= 4:
+        if final_score <= 4:
             return "D"
         return "E"
+
+    @staticmethod
+    def calculate_sobriety_score(
+        resources: list[dict[str, Any]],
+        environment: str = "dev",
+        region: str = "us-central1",
+    ) -> str:
+        """Calcule une note de sobriété de A (très sobre) à E (très gourmand).
+
+        Orchestre le pipeline : hardware → env modifier → region factor → lettre.
+        """
+        if not resources:
+            return "A"
+
+        base = RecommendationEngine._calculate_hardware_impact(resources)
+        adjusted = RecommendationEngine._apply_environmental_modifiers(base, environment)
+        final = RecommendationEngine._apply_regional_factors(adjusted, region)
+        return RecommendationEngine._map_score_to_letter(final)
 
     @staticmethod
     def is_high_carbon_region(region: str) -> bool:

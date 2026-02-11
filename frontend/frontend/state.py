@@ -1,15 +1,12 @@
 """État global de l'application EcoArch (Reflex State).
 
-Sécurité :
-- Authentification par token (CRIT-3) – les actions sensibles vérifient _require_auth().
-- Plus de sys.path.append – imports propres via le package src (ARCH-2).
-- Stubs centralisés dans src.stubs (ARCH-1 – DRY).
-- Client Supabase singleton (ARCH-3).
-- Logging explicite au lieu de except:pass (ROB-1).
+Ce module ne contient QUE l'état UI et l'orchestration des événements Reflex.
+Toute logique métier est déléguée aux services :
+- Authentification → src.services.auth_service.AuthService
+- Client Supabase singleton → Config.get_supabase_client()
+- Simulation / Déploiement → src.simulation, src.deployer
 """
 import asyncio
-import hashlib
-import hmac
 import logging
 import os
 import sys
@@ -30,6 +27,7 @@ try:
     from src.config import GCPConfig, Config
     from src.simulation import InfracostSimulator
     from src.recommendation import RecommendationEngine
+    from src.services.auth_service import AuthService, AuthResult
     from src.deployer import (
         trigger_deployment,
         trigger_destruction,
@@ -42,6 +40,8 @@ except ImportError:
         ConfigStub as Config,
         InfracostSimulatorStub as InfracostSimulator,
         RecommendationEngineStub as RecommendationEngine,
+        AuthServiceStub as AuthService,  # type: ignore[assignment]
+        AuthResultStub as AuthResult,  # type: ignore[assignment]
     )
     trigger_deployment = None
     trigger_destruction = None
@@ -50,46 +50,9 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-# ── Supabase Singleton (ARCH-3) ──────────────────────────────────
-_supabase_client = None
-
-
-def _get_supabase():
-    """Retourne un client Supabase singleton (ou None si non configuré)."""
-    global _supabase_client
-    if _supabase_client is None and Config.SUPABASE_URL and Config.SUPABASE_SERVICE_KEY:
-        try:
-            from supabase import create_client
-            _supabase_client = create_client(Config.SUPABASE_URL, Config.SUPABASE_SERVICE_KEY)
-        except Exception:
-            logger.warning("Impossible de créer le client Supabase", exc_info=True)
-    return _supabase_client
-
-
-# ── Authentification (CRIT-3) ────────────────────────────────────
-# En production, AUTH_SECRET_KEY doit être défini dans Secret Manager.
-# Le frontend envoie un token = HMAC(secret, username) pour prouver l'identité.
-AUTH_SECRET = os.getenv("AUTH_SECRET_KEY", "")
-AUTH_ENABLED = bool(AUTH_SECRET)
-
 # ── Audit polling (GreenOps – backoff exponentiel) ─────────────────
 _AUDIT_POLL_INTERVAL_MIN_S = 10
 _AUDIT_POLL_INTERVAL_MAX_S = 120
-
-
-def _generate_auth_token(username: str) -> str:
-    """Génère un token HMAC pour un utilisateur (appelé côté serveur)."""
-    if not AUTH_SECRET:
-        return ""
-    return hmac.new(AUTH_SECRET.encode(), username.encode(), hashlib.sha256).hexdigest()
-
-
-def _verify_auth_token(username: str, token: str) -> bool:
-    """Vérifie le token d'authentification d'un utilisateur."""
-    if not AUTH_ENABLED:
-        return True  # Auth désactivée en dev
-    expected = _generate_auth_token(username)
-    return hmac.compare_digest(expected, token)
 
 
 class State(rx.State):
@@ -110,9 +73,9 @@ class State(rx.State):
         self.login_username = value
 
     def login(self, form_data: dict | None = None):
-        """Authentifie l'utilisateur via la table Supabase `profiles`.
+        """Authentifie l'utilisateur via AuthService.
 
-        Message d'erreur générique pour prévenir l'énumération d'utilisateurs.
+        Délègue la vérification Supabase à AuthService (séparation métier/UI).
         Après succès, lance systématiquement la simulation de coûts.
         """
         # Récupérer le username depuis le formulaire ou le champ d'état
@@ -128,45 +91,23 @@ class State(rx.State):
             yield rx.toast.error("Veuillez saisir votre identifiant.")
             return
 
-        logger.info("Tentative de connexion pour: %s", username)
+        result = AuthService.verify_credentials(username)
 
-        # Requête Supabase pour vérifier le profil
-        sb = _get_supabase()
-        if sb is not None:
-            try:
-                res = sb.table("profiles").select("role").eq(
-                    "username", username
-                ).limit(1).execute()
+        if not result.authenticated:
+            self.is_authenticated = False
+            self.user_role = ""
+            self.login_error = result.error
+            yield rx.toast.error(result.error)
+            return
 
-                if res.data:
-                    self.user_role = res.data[0].get("role", "viewer")
-                    self.is_authenticated = True
-                    self.current_user = username
-                    self.login_error = ""
-                    logger.info("Utilisateur validé: %s (role=%s)", username, self.user_role)
-                    yield rx.toast.success(f"Bienvenue, {username}")
-                else:
-                    self.is_authenticated = False
-                    self.user_role = ""
-                    self.login_error = "Identifiants invalides"
-                    logger.warning("Échec login: %s", username)
-                    yield rx.toast.error("Identifiants invalides")
-                    return
+        self.is_authenticated = True
+        self.current_user = result.username
+        self.user_role = result.role
+        self.login_error = ""
 
-            except Exception as exc:
-                logger.warning("Erreur Supabase profiles: %s", exc, exc_info=True)
-                self.is_authenticated = True
-                self.current_user = username
-                self.user_role = "viewer"
-                self.login_error = ""
-                yield rx.toast.warning("Supabase indisponible – mode dégradé")
+        if result.degraded:
+            yield rx.toast.warning("Supabase indisponible – mode dégradé")
         else:
-            # Pas de Supabase (dev local) → accepter tout le monde
-            self.is_authenticated = True
-            self.current_user = username
-            self.user_role = "admin"
-            self.login_error = ""
-            logger.info("Supabase non configuré – auth locale pour: %s", username)
             yield rx.toast.success(f"Bienvenue, {username}")
 
         # ── Toujours relancer la simulation après auth réussie ──
@@ -754,7 +695,7 @@ class State(rx.State):
         cost: float | None = None,
     ) -> int | None:
         """Crée un log d'audit dans Supabase."""
-        sb = _get_supabase()
+        sb = Config.get_supabase_client()
         if not sb:
             return None
 
@@ -787,7 +728,7 @@ class State(rx.State):
         if not audit_id:
             return
 
-        sb = _get_supabase()
+        sb = Config.get_supabase_client()
         if not sb:
             return
 
@@ -833,7 +774,7 @@ class State(rx.State):
         pipeline (SUCCESS / FAILED / CANCELLED / RUNNING) et met à jour
         Supabase en conséquence.
         """
-        sb = _get_supabase()
+        sb = Config.get_supabase_client()
         if not sb:
             return
 

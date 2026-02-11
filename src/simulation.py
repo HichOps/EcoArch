@@ -41,7 +41,14 @@ _FALLBACK_COMPUTE: dict[str, float] = {
     "n1-standard-1": 24.27, "n2-standard-2": 65.64,
     "n2-standard-4": 131.29, "c2-standard-4": 141.24,
 }
-_FALLBACK_DISK_PER_GB = 0.04  # SSD PD $/GB/mois
+# GreenOps: pricing par type de disque ($/GB/mois)
+# pd-standard est le défaut sobre ; pd-ssd réservé aux workloads I/O-intensifs.
+_FALLBACK_DISK_PER_GB: dict[str, float] = {
+    "pd-standard": 0.04,
+    "pd-balanced": 0.10,
+    "pd-ssd": 0.17,
+}
+_FALLBACK_DISK_DEFAULT_RATE = 0.04  # pd-standard
 
 _FALLBACK_SQL: dict[str, float] = {
     "db-f1-micro": 7.67, "db-g1-small": 25.55,
@@ -118,7 +125,9 @@ def fallback_estimate(resources: list[dict[str, Any]]) -> SimulationResult:
             machine = res.get("machine_type", "e2-medium")
             vm_cost, matched = _fuzzy_lookup(_FALLBACK_COMPUTE, machine, 29.38)
             disk = int(res.get("disk_size", 50))
-            cost = vm_cost + disk * _FALLBACK_DISK_PER_GB
+            disk_type = res.get("disk_type", "pd-standard")
+            disk_rate = _FALLBACK_DISK_PER_GB.get(disk_type, _FALLBACK_DISK_DEFAULT_RATE)
+            cost = vm_cost + disk * disk_rate
         elif rt == "sql":
             tier = res.get("db_tier", "db-f1-micro")
             cost, matched = _fuzzy_lookup(_FALLBACK_SQL, tier, 7.67)
@@ -235,14 +244,19 @@ class InfracostSimulator:
             rt = res["type"]
             if rt == "compute":
                 startup_script = GCPConfig.get_startup_script(res["software_stack"])
+                machine = res["machine_type"]
+                # GreenOps: E2 shared-core = haute efficacité énergétique
+                is_green = machine.startswith("e2-")
                 compute_resources.append({
                     "name": f"res-{idx}-compute",
                     "gcp_name": f"res-{idx}-compute-{deployment_id}",
-                    "machine_type": res["machine_type"],
+                    "machine_type": machine,
                     "disk_size": res["disk_size"],
+                    "disk_type": res.get("disk_type", GCPConfig.DEFAULT_DISK_TYPE),
                     "software_stack": res["software_stack"],
                     "startup_script": startup_script,
                     "zone": f"{Config.DEFAULT_REGION}-a",
+                    "carbon_awareness": "high" if is_green else "standard",
                 })
             elif rt == "sql":
                 sql_resources.append({
@@ -288,7 +302,13 @@ class InfracostSimulator:
 
         return '''# ═══════════════════════════════════════════════════
 # EcoArch – Terraform Config (auto-generated)
-# Valeurs injectées via terraform.tfvars.json
+# Green by Design – Sobriété par défaut
+#
+# Stratégie GreenOps :
+# - Disques pd-standard par défaut (IOPS faible = empreinte réduite)
+# - Famille E2 (shared-core) privilégiée pour l'efficacité énergétique
+# - Label carbon_awareness pour traçabilité FinOps/GreenOps
+# - Valeurs injectées via terraform.tfvars.json (zero interpolation)
 # ═══════════════════════════════════════════════════
 
 terraform {
@@ -314,13 +334,15 @@ variable "lb_count" { type = number; default = 0 }
 
 variable "compute_instances" {
   type = list(object({
-    name           = string
-    gcp_name       = string
-    machine_type   = string
-    disk_size      = number
-    software_stack = string
-    startup_script = string
-    zone           = string
+    name              = string
+    gcp_name          = string
+    machine_type      = string
+    disk_size         = number
+    disk_type         = string   # GreenOps: pd-standard (default) | pd-balanced | pd-ssd
+    software_stack    = string
+    startup_script    = string
+    zone              = string
+    carbon_awareness  = string   # high (E2 shared-core) | standard (dedicated)
   }))
   default = []
 }
@@ -345,6 +367,8 @@ variable "storage_buckets" {
 }
 
 # ── Compute Engine ────────────────────────────────
+# GreenOps: disk_type = pd-standard réduit l'empreinte I/O de ~60%
+# par rapport à pd-ssd, suffisant pour la majorité des workloads.
 resource "google_compute_instance" "vm" {
   count        = length(var.compute_instances)
   name         = var.compute_instances[count.index].gcp_name
@@ -355,6 +379,7 @@ resource "google_compute_instance" "vm" {
     initialize_params {
       image = var.default_image
       size  = var.compute_instances[count.index].disk_size
+      type  = var.compute_instances[count.index].disk_type
     }
   }
 
@@ -368,13 +393,16 @@ resource "google_compute_instance" "vm" {
   }
 
   labels = {
-    deployment_id  = var.deployment_id
-    managed_by     = "ecoarch-app"
-    software_stack = var.compute_instances[count.index].software_stack
+    deployment_id    = var.deployment_id
+    managed_by       = "ecoarch-app"
+    software_stack   = var.compute_instances[count.index].software_stack
+    carbon_awareness = var.compute_instances[count.index].carbon_awareness
   }
 }
 
 # ── Cloud SQL ─────────────────────────────────────
+# GreenOps: tiers db-f1-micro / db-g1-small = empreinte minimale.
+# deletion_protection=false pour les environnements éphémères.
 resource "google_sql_database_instance" "db" {
   count            = length(var.sql_instances)
   name             = var.sql_instances[count.index].gcp_name
@@ -385,6 +413,8 @@ resource "google_sql_database_instance" "db" {
 }
 
 # ── Cloud Storage ─────────────────────────────────
+# GreenOps: STANDARD par défaut. NEARLINE/COLDLINE/ARCHIVE
+# recommandés pour les données rarement accédées (moins de réplication).
 resource "google_storage_bucket" "bucket" {
   count         = length(var.storage_buckets)
   name          = var.storage_buckets[count.index].bucket_name

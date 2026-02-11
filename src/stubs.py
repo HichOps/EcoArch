@@ -37,6 +37,43 @@ class ConfigStub:
     REDIS_URL: str = ""
     AUTH_SECRET_KEY: str = ""
     AUTH_ENABLED: bool = False
+    GITLAB_TRIGGER_TOKEN: str = ""
+
+    @classmethod
+    def get_supabase_client(cls):
+        return None
+
+
+class AuthResultStub:
+    """Stub pour src.services.auth_service.AuthResult."""
+    def __init__(
+        self,
+        authenticated: bool = False,
+        username: str = "",
+        role: str = "",
+        error: str = "",
+        degraded: bool = False,
+    ):
+        self.authenticated = authenticated
+        self.username = username
+        self.role = role
+        self.error = error
+        self.degraded = degraded
+
+
+class AuthServiceStub:
+    """Stub pour src.services.auth_service.AuthService."""
+    @staticmethod
+    def verify_credentials(username: str) -> AuthResultStub:
+        return AuthResultStub(authenticated=True, username=username, role="admin")
+
+    @staticmethod
+    def generate_token(username: str) -> str:
+        return ""
+
+    @staticmethod
+    def verify_token(username: str, token: str) -> bool:
+        return True
 
 
 class RecommendationEngineStub:

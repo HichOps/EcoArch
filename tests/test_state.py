@@ -205,12 +205,12 @@ class TestCostGuardrails:
         )
 
         with patch("frontend.frontend.state.trigger_deployment") as mock_trigger, \
-             patch("frontend.frontend.state.Config") as mock_config, \
-             patch("frontend.frontend.state._get_supabase", return_value=None):
+             patch("frontend.frontend.state.Config") as mock_config:
 
             # Configure GitLab trigger mock
             mock_config.GITLAB_TRIGGER_TOKEN = "glptt-test"
             mock_config.DEFAULT_BUDGET_LIMIT = 50.0
+            mock_config.get_supabase_client.return_value = None
             mock_result = MagicMock()
             mock_result.success = True
             mock_result.pipeline_id = 123
@@ -427,7 +427,7 @@ class TestAuditFormatting:
 # ============================================================
 
 class TestLogin:
-    """Tests du système d'authentification auth-first."""
+    """Tests du système d'authentification via AuthService."""
 
     @staticmethod
     def _exhaust_gen(gen):
@@ -443,17 +443,16 @@ class TestLogin:
     def test_known_user_authenticates(self):
         """Utilisateur connu dans profiles → is_authenticated = True, role rempli."""
         from frontend.frontend.state import State
+        from src.services.auth_service import AuthResult
 
         s = _make_state(current_user="", is_authenticated=False, user_role="", login_username="Hicham")
         s.run_simulation = lambda: _get_fn(State.run_simulation)(s)
 
-        mock_sb = MagicMock()
-        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
-            data=[{"role": "admin"}]
-        )
-
-        with patch("frontend.frontend.state._get_supabase", return_value=mock_sb), \
+        with patch("frontend.frontend.state.AuthService") as mock_auth, \
              patch("frontend.frontend.state.InfracostSimulator"):
+            mock_auth.verify_credentials.return_value = AuthResult(
+                authenticated=True, username="Hicham", role="admin"
+            )
             self._exhaust_gen(_get_fn(State.login)(s, None))
 
         assert s.is_authenticated is True
@@ -463,17 +462,16 @@ class TestLogin:
     def test_login_with_form_data(self):
         """Login via form_data dict."""
         from frontend.frontend.state import State
+        from src.services.auth_service import AuthResult
 
         s = _make_state(current_user="", is_authenticated=False, user_role="", login_username="")
         s.run_simulation = lambda: _get_fn(State.run_simulation)(s)
 
-        mock_sb = MagicMock()
-        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
-            data=[{"role": "viewer"}]
-        )
-
-        with patch("frontend.frontend.state._get_supabase", return_value=mock_sb), \
+        with patch("frontend.frontend.state.AuthService") as mock_auth, \
              patch("frontend.frontend.state.InfracostSimulator"):
+            mock_auth.verify_credentials.return_value = AuthResult(
+                authenticated=True, username="Hicham", role="viewer"
+            )
             self._exhaust_gen(_get_fn(State.login)(s, {"username": "Hicham"}))
 
         assert s.is_authenticated is True
@@ -483,15 +481,14 @@ class TestLogin:
     def test_unknown_user_rejected_generic_msg(self):
         """Utilisateur inconnu → is_authenticated = False, message générique."""
         from frontend.frontend.state import State
+        from src.services.auth_service import AuthResult
 
         s = _make_state(current_user="", is_authenticated=False, user_role="", login_username="Intrus")
 
-        mock_sb = MagicMock()
-        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
-            data=[]
-        )
-
-        with patch("frontend.frontend.state._get_supabase", return_value=mock_sb):
+        with patch("frontend.frontend.state.AuthService") as mock_auth:
+            mock_auth.verify_credentials.return_value = AuthResult(
+                authenticated=False, error="Identifiants invalides"
+            )
             self._exhaust_gen(_get_fn(State.login)(s, None))
 
         assert s.is_authenticated is False
@@ -499,7 +496,7 @@ class TestLogin:
         assert s.login_error == "Identifiants invalides"
 
     def test_empty_username_shows_error(self):
-        """Username vide → erreur, pas d'auth."""
+        """Username vide → erreur, pas d'auth (AuthService jamais appelé)."""
         from frontend.frontend.state import State
 
         s = _make_state(current_user="", is_authenticated=False, user_role="", login_username="")
@@ -510,33 +507,36 @@ class TestLogin:
         assert s.login_error == "Veuillez saisir votre identifiant."
 
     def test_supabase_error_falls_back_gracefully(self):
-        """Erreur Supabase → mode dégradé, is_authenticated = True (viewer)."""
+        """Erreur Supabase → mode dégradé via AuthResult.degraded."""
         from frontend.frontend.state import State
+        from src.services.auth_service import AuthResult
 
         s = _make_state(current_user="", is_authenticated=False, user_role="", login_username="Hicham")
         s.run_simulation = lambda: _get_fn(State.run_simulation)(s)
 
-        mock_sb = MagicMock()
-        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.side_effect = Exception(
-            "Connection refused"
-        )
-
-        with patch("frontend.frontend.state._get_supabase", return_value=mock_sb), \
+        with patch("frontend.frontend.state.AuthService") as mock_auth, \
              patch("frontend.frontend.state.InfracostSimulator"):
+            mock_auth.verify_credentials.return_value = AuthResult(
+                authenticated=True, username="Hicham", role="viewer", degraded=True
+            )
             self._exhaust_gen(_get_fn(State.login)(s, None))
 
         assert s.is_authenticated is True
         assert s.user_role == "viewer"
 
     def test_no_supabase_accepts_locally(self):
-        """Pas de Supabase configuré → auth locale accepte tout."""
+        """Pas de Supabase configuré → auth locale accepte tout (via AuthService)."""
         from frontend.frontend.state import State
+        from src.services.auth_service import AuthResult
 
         s = _make_state(current_user="", is_authenticated=False, user_role="", login_username="DevLocal")
         s.run_simulation = lambda: _get_fn(State.run_simulation)(s)
 
-        with patch("frontend.frontend.state._get_supabase", return_value=None), \
+        with patch("frontend.frontend.state.AuthService") as mock_auth, \
              patch("frontend.frontend.state.InfracostSimulator"):
+            mock_auth.verify_credentials.return_value = AuthResult(
+                authenticated=True, username="DevLocal", role="admin"
+            )
             self._exhaust_gen(_get_fn(State.login)(s, None))
 
         assert s.is_authenticated is True
@@ -546,6 +546,7 @@ class TestLogin:
     def test_login_triggers_simulation_with_cart(self):
         """Auth réussie avec panier non-vide → coût calculé."""
         from frontend.frontend.state import State
+        from src.services.auth_service import AuthResult
 
         s = _make_state(
             current_user="",
@@ -556,13 +557,11 @@ class TestLogin:
         )
         s.run_simulation = lambda: _get_fn(State.run_simulation)(s)
 
-        mock_sb = MagicMock()
-        mock_sb.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = MagicMock(
-            data=[{"role": "admin"}]
-        )
-
-        with patch("frontend.frontend.state._get_supabase", return_value=mock_sb), \
+        with patch("frontend.frontend.state.AuthService") as mock_auth, \
              patch("frontend.frontend.state.InfracostSimulator") as mock_sim_cls:
+            mock_auth.verify_credentials.return_value = AuthResult(
+                authenticated=True, username="Hicham", role="admin"
+            )
             mock_result = MagicMock(success=True, monthly_cost=31.38, details={"_source": "fallback"})
             mock_sim_cls.return_value.simulate.return_value = mock_result
             self._exhaust_gen(_get_fn(State.login)(s, None))
@@ -573,6 +572,7 @@ class TestLogin:
     def test_login_triggers_simulation_even_empty_cart(self):
         """Auth réussie avec panier vide → simulation appelée, cost = 0."""
         from frontend.frontend.state import State
+        from src.services.auth_service import AuthResult
 
         s = _make_state(
             current_user="",
@@ -584,8 +584,11 @@ class TestLogin:
         )
         s.run_simulation = lambda: _get_fn(State.run_simulation)(s)
 
-        with patch("frontend.frontend.state._get_supabase", return_value=None), \
+        with patch("frontend.frontend.state.AuthService") as mock_auth, \
              patch("frontend.frontend.state.InfracostSimulator"):
+            mock_auth.verify_credentials.return_value = AuthResult(
+                authenticated=True, username="DevLocal", role="admin"
+            )
             self._exhaust_gen(_get_fn(State.login)(s, None))
 
         assert s.is_authenticated is True

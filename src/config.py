@@ -114,6 +114,26 @@ class Config:
     # Redis / Celery (legacy – non utilisé sur Cloud Run)
     REDIS_URL = _get_env("REDIS_URL", "redis://localhost:6379/0")
 
+    # Authentification
+    AUTH_SECRET_KEY = _get_secret_or_env("auth-secret-key", "AUTH_SECRET_KEY")
+    AUTH_ENABLED: bool = bool(AUTH_SECRET_KEY)
+
+    # ── Client Supabase singleton ─────────────────────────────────
+    _supabase_client = None
+
+    @classmethod
+    def get_supabase_client(cls):
+        """Retourne un client Supabase singleton (ou None si non configuré)."""
+        if cls._supabase_client is None and cls.SUPABASE_URL and cls.SUPABASE_SERVICE_KEY:
+            try:
+                from supabase import create_client
+                cls._supabase_client = create_client(
+                    cls.SUPABASE_URL, cls.SUPABASE_SERVICE_KEY
+                )
+            except Exception:
+                logger.warning("Impossible de créer le client Supabase", exc_info=True)
+        return cls._supabase_client
+
 class GCPConfig:
     """Options disponibles pour les ressources GCP."""
     
@@ -127,11 +147,21 @@ class GCPConfig:
     ]
     
     # Compute Engine - Types de machines
+    # GreenOps: La famille E2 (shared-core) est prioritaire car elle offre
+    # la meilleure efficacité énergétique sur GCP (vCPU partagés, idle = 0W).
+    # Les familles N1/N2/C2 (dedicated) ne sont proposées qu'en fin de liste
+    # pour les workloads qui exigent des performances dédiées.
     INSTANCE_TYPES = [
         "e2-micro", "e2-small", "e2-medium",
         "e2-standard-2", "e2-standard-4",
         "n1-standard-1", "n2-standard-2", "c2-standard-4",
     ]
+
+    # Disques persistants – GreenOps: pd-standard par défaut (IOPS faible
+    # = moins de spinning/flash wear = empreinte réduite). SSD réservé aux
+    # workloads I/O-intensifs explicitement demandés.
+    DISK_TYPES = ["pd-standard", "pd-balanced", "pd-ssd"]
+    DEFAULT_DISK_TYPE = "pd-standard"
     
     # Cloud SQL - Tiers et versions
     DB_TIERS = [

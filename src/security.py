@@ -38,6 +38,7 @@ class InputSanitizer:
     _ALLOWED_STORAGE_CLASSES: set[str] = set(GCPConfig.STORAGE_CLASSES) | {
         "MULTI_REGIONAL"
     }
+    _ALLOWED_DISK_TYPES: set[str] = set(GCPConfig.DISK_TYPES)
     _ALLOWED_SOFTWARE_STACKS: set[str] = set(GCPConfig.get_stack_names())
 
     @classmethod
@@ -115,6 +116,10 @@ class InputSanitizer:
         )
 
     @classmethod
+    def validate_disk_type(cls, value: str) -> str:
+        return cls._validate_whitelist(value, "disk_type", cls._ALLOWED_DISK_TYPES)
+
+    @classmethod
     def validate_software_stack(cls, value: str) -> str:
         return cls._validate_whitelist(
             value, "software_stack", cls._ALLOWED_SOFTWARE_STACKS
@@ -144,11 +149,13 @@ class InputSanitizer:
             machine = str(res.get("machine_type", "e2-medium"))
             stack = str(res.get("software_stack", "none"))
             disk = res.get("disk_size", 50)
+            disk_type = str(res.get("disk_type", GCPConfig.DEFAULT_DISK_TYPE))
 
             validated["machine_type"] = cls.validate_machine_type(machine)
             validated["disk_size"] = cls.validate_int(
                 disk, "disk_size", min_val=GCPConfig.MIN_STORAGE_GB, max_val=GCPConfig.MAX_STORAGE_GB
             )
+            validated["disk_type"] = cls.validate_disk_type(disk_type)
             validated["software_stack"] = cls.validate_software_stack(stack)
 
         elif resource_type == "sql":
