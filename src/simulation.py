@@ -17,60 +17,10 @@ from pathlib import Path
 from typing import Any, Generator, Optional
 
 from .config import Config, GCPConfig
+from .security import InputSanitizer, ValidationError
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# ── Validation Patterns ──────────────────────────────────────────
-_RE_DEPLOYMENT_ID = re.compile(r"^[a-z0-9][a-z0-9\-]{1,30}$")
-_RE_SAFE_VALUE = re.compile(r"^[a-zA-Z0-9_\-./]+$")
-
-# Whitelists strictes pour les valeurs Terraform
-_ALLOWED_MACHINE_TYPES = set(GCPConfig.INSTANCE_TYPES) | {
-    "e2-highcpu-2", "e2-highmem-2",
-}
-_ALLOWED_DB_TIERS = set(GCPConfig.DB_TIERS) | {"db-custom-2-3840"}
-_ALLOWED_DB_VERSIONS = set(GCPConfig.DB_VERSIONS)
-_ALLOWED_STORAGE_CLASSES = set(GCPConfig.STORAGE_CLASSES) | {"MULTI_REGIONAL"}
-_ALLOWED_SOFTWARE_STACKS = set(GCPConfig.get_stack_names())
-
-
-class ValidationError(ValueError):
-    """Erreur de validation des entrées utilisateur."""
-    pass
-
-
-def _validate_deployment_id(value: str) -> str:
-    """Valide et retourne un deployment_id sûr."""
-    if not _RE_DEPLOYMENT_ID.match(value):
-        raise ValidationError(
-            f"deployment_id invalide (alphanum + tirets, 2-31 chars): {value!r}"
-        )
-    return value
-
-
-def _validate_value(value: str, field_name: str, allowed: set[str] | None = None) -> str:
-    """Valide une valeur Terraform contre une whitelist ou un pattern sûr."""
-    if allowed and value not in allowed:
-        raise ValidationError(
-            f"{field_name} non autorisé: {value!r}. Valeurs acceptées: {sorted(allowed)}"
-        )
-    if not allowed and not _RE_SAFE_VALUE.match(value):
-        raise ValidationError(
-            f"{field_name} contient des caractères interdits: {value!r}"
-        )
-    return value
-
-
-def _validate_int(value: Any, field_name: str, min_val: int = 1, max_val: int = 64000) -> int:
-    """Valide un entier dans une plage autorisée."""
-    try:
-        v = int(value)
-    except (ValueError, TypeError):
-        raise ValidationError(f"{field_name} doit être un entier: {value!r}")
-    if not (min_val <= v <= max_val):
-        raise ValidationError(f"{field_name} hors limites [{min_val}, {max_val}]: {v}")
-    return v
 
 
 @dataclass
@@ -241,39 +191,12 @@ class InfracostSimulator:
         env["TF_IN_AUTOMATION"] = "true"
         return env
 
-    # ── Validation des ressources ─────────────────────────────────
-
     def _validate_resource(self, res: dict[str, Any]) -> dict[str, Any]:
-        """Valide et normalise une ressource avant génération Terraform."""
-        resource_type = res.get("type", "compute")
-        _validate_value(resource_type, "type", {"compute", "sql", "storage", "load_balancer"})
+        """Valide et normalise une ressource avant génération Terraform.
 
-        validated: dict[str, Any] = {"type": resource_type}
-
-        if resource_type == "compute":
-            validated["machine_type"] = _validate_value(
-                res.get("machine_type", "e2-medium"), "machine_type", _ALLOWED_MACHINE_TYPES
-            )
-            validated["disk_size"] = _validate_int(
-                res.get("disk_size", 50), "disk_size", min_val=10, max_val=64000
-            )
-            validated["software_stack"] = _validate_value(
-                res.get("software_stack", "none"), "software_stack", _ALLOWED_SOFTWARE_STACKS
-            )
-        elif resource_type == "sql":
-            validated["db_tier"] = _validate_value(
-                res.get("db_tier", "db-f1-micro"), "db_tier", _ALLOWED_DB_TIERS
-            )
-            validated["db_version"] = _validate_value(
-                res.get("db_version", "POSTGRES_14"), "db_version", _ALLOWED_DB_VERSIONS
-            )
-        elif resource_type == "storage":
-            validated["storage_class"] = _validate_value(
-                res.get("storage_class", "STANDARD"), "storage_class", _ALLOWED_STORAGE_CLASSES
-            )
-        # load_balancer has no user-controlled fields
-
-        return validated
+        Délégué à InputSanitizer pour garantir une logique unique et testée.
+        """
+        return InputSanitizer.validate_resource(res)
 
     # ── Génération Terraform sécurisée (tfvars.json) ──────────────
 
@@ -291,7 +214,7 @@ class InfracostSimulator:
         - terraform.tfvars.json contient les valeurs, sérialisées via json.dumps()
         - Aucune interpolation f-string de valeurs utilisateur dans le HCL
         """
-        deployment_id = _validate_deployment_id(deployment_id)
+        deployment_id = InputSanitizer.validate_deployment_id(deployment_id)
         validated_resources = [self._validate_resource(r) for r in resources]
 
         # ── 1. Construire les variables tfvars ────────────────────
@@ -591,7 +514,7 @@ resource "google_compute_global_address" "lb" {
         deployment_id: str,
     ) -> Generator[str, None, None]:
         """Déploie les ressources via Terraform (générateur pour streaming)."""
-        deployment_id = _validate_deployment_id(deployment_id)
+        deployment_id = InputSanitizer.validate_deployment_id(deployment_id)
 
         with tempfile.TemporaryDirectory(prefix=f"ecoarch_{deployment_id}_") as tmpdir:
             yield f"📝 ID: {deployment_id}"
@@ -614,7 +537,7 @@ resource "google_compute_global_address" "lb" {
         deployment_id: str,
     ) -> Generator[str, None, None]:
         """Détruit les ressources via Terraform (générateur pour streaming)."""
-        deployment_id = _validate_deployment_id(deployment_id)
+        deployment_id = InputSanitizer.validate_deployment_id(deployment_id)
 
         with tempfile.TemporaryDirectory(prefix=f"ecoarch_destroy_{deployment_id}_") as tmpdir:
             yield f"🔥 Cible: {deployment_id}"

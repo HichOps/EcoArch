@@ -1,0 +1,52 @@
+# Add directories or file patterns to ignore during indexing (e.g. foo/ or *.csv)
+# Dépendances (Le plus important !)
+node_modules/
+vendor/
+.venv/
+venv/
+
+# Dossiers de build/compilation
+dist/
+build/
+out/
+.next/
+.nuxt/
+target/
+
+# Fichiers de configuration de version (trop longs et inutiles pour l'IA)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+composer.lock
+Cargo.lock
+
+# Système de version
+.git/
+.svn/
+
+# Fichiers temporaires et logs
+*.log
+.DS_Store
+tmp/
+temp/
+coverage/
+
+# Sécurité (Même si Cursor est privé, autant ne pas indexer les secrets)
+.env
+.env.local
+.env.*
+*.pem
+*.key
+
+# Assets lourds (L'IA ne "voit" pas les images, elle lit le code)
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.ico
+*.svg
+*.mp4
+*.mov
+*.pdf
+*.zip
+*.tar.gz

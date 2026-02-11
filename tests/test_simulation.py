@@ -215,7 +215,7 @@ class TestTerraformCodeGeneration:
 
     def test_unknown_resource_type_rejected(self):
         """Un type de ressource inconnu lève ValidationError (CRIT-1 sécurité)."""
-        from src.simulation import ValidationError
+        from src.security import ValidationError
         simulator = InfracostSimulator()
         resources = [{"type": "unknown_thing"}]
         with pytest.raises(ValidationError, match="type non autorisé"):

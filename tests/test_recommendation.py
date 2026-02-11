@@ -295,3 +295,56 @@ class TestStability:
             dbs = [r for r in resources if r["type"] == "sql"]
             for db in dbs:
                 assert db["db_version"] == "POSTGRES_15"
+
+
+class TestSobrietyScore:
+    """Tests pour le Sobriety Score (Green Score)."""
+
+    def test_empty_resources_is_A(self):
+        assert RecommendationEngine.calculate_sobriety_score([], "dev", "us-central1") == "A"
+
+    def test_single_micro_dev_is_A(self):
+        resources = [
+            {"type": "compute", "machine_type": "e2-micro", "disk_size": 20},
+            {"type": "storage", "storage_class": "STANDARD"},
+        ]
+        assert RecommendationEngine.calculate_sobriety_score(resources, "dev", "us-central1") == "A"
+
+    def test_heavy_prod_is_D_or_E(self):
+        resources = [
+            {"type": "compute", "machine_type": "n2-standard-4", "disk_size": 200},
+            {"type": "compute", "machine_type": "n2-standard-4", "disk_size": 200},
+            {"type": "storage", "storage_class": "MULTI_REGIONAL"},
+        ]
+        score = RecommendationEngine.calculate_sobriety_score(resources, "prod", "us-central1")
+        assert score in {"D", "E"}
+
+    def test_low_carbon_region_improves_score(self):
+        """Une région low carbon doit améliorer le score."""
+        resources = [
+            {"type": "compute", "machine_type": "e2-medium", "disk_size": 50},
+            {"type": "storage", "storage_class": "STANDARD"},
+        ]
+        score_medium = RecommendationEngine.calculate_sobriety_score(
+            resources, "prod", "us-central1"
+        )
+        score_low = RecommendationEngine.calculate_sobriety_score(
+            resources, "prod", "europe-west1"
+        )
+        # La région low doit avoir un score au moins aussi bon (lettre <=)
+        assert score_low <= score_medium
+
+
+class TestGreenAlternatives:
+    """Tests pour les suggestions de régions low-carbon."""
+
+    def test_us_east4_has_canada_central1_alternative(self):
+        alt = RecommendationEngine.get_green_alternative("us-east4")
+        assert alt == "canada-central1"
+
+    def test_europe_central2_has_west1_or_west9(self):
+        alt = RecommendationEngine.get_green_alternative("europe-central2")
+        assert alt in {"europe-west1", "europe-west9"}
+
+    def test_non_high_region_returns_none(self):
+        assert RecommendationEngine.get_green_alternative("us-central1") is None

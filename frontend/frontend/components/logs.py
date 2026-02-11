@@ -138,6 +138,19 @@ def deploy_console() -> rx.Component:
                     type="hover",
                     scrollbars="vertical",
                 ),
+                # Timer de démo non bloquant (GreenOps)
+                rx.cond(
+                    State.deploy_status == "running",
+                    rx.timer(
+                        milliseconds=State.next_demo_delay_ms,
+                        on_complete=State.advance_demo_step,
+                        key=rx.cond(
+                            State.next_demo_delay_ms > 0,
+                            f"demo-{State.demo_index}",
+                            "demo-idle",
+                        ),
+                    ),
+                ),
                 width="100%",
                 height="100%",
             ),

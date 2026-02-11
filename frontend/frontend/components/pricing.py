@@ -2,6 +2,7 @@
 import reflex as rx
 
 from ..state import State
+from .charts import carbon_vs_cost_chart
 from src.config import Config
 
 BUDGET_LIMIT = Config.DEFAULT_BUDGET_LIMIT
@@ -51,33 +52,96 @@ def pricing_block() -> rx.Component:
                 spacing="1",
             ),
             
-            # Badge budget avec style Apple
-            rx.box(
-                rx.hstack(
-                    rx.icon(
-                        rx.cond(State.cost > BUDGET_LIMIT, "circle-alert", "circle-check"),
-                        size=14,
-                        color=rx.cond(State.cost > BUDGET_LIMIT, APPLE_RED, APPLE_GREEN),
-                    ),
-                    rx.text(
-                        rx.cond(
-                            State.cost > BUDGET_LIMIT,
-                            "Budget dépassé",
-                            "Budget respecté",
+            # Badges budget + sobriety (Green Score) avec style Apple
+            rx.hstack(
+                # Badge budget
+                rx.box(
+                    rx.hstack(
+                        rx.icon(
+                            rx.cond(
+                                State.cost > BUDGET_LIMIT,
+                                "circle-alert",
+                                "circle-check",
+                            ),
+                            size=14,
+                            color=rx.cond(
+                                State.cost > BUDGET_LIMIT, APPLE_RED, APPLE_GREEN
+                            ),
                         ),
-                        weight="bold",
-                        size="2",
-                        color=rx.cond(State.cost > BUDGET_LIMIT, APPLE_RED, APPLE_GREEN),
+                        rx.text(
+                            rx.cond(
+                                State.cost > BUDGET_LIMIT,
+                                "Budget dépassé",
+                                "Budget respecté",
+                            ),
+                            weight="bold",
+                            size="2",
+                            color=rx.cond(
+                                State.cost > BUDGET_LIMIT, APPLE_RED, APPLE_GREEN
+                            ),
+                        ),
+                        spacing="2",
+                        align="center",
                     ),
-                    spacing="2",
-                    align="center",
+                    padding="8px 16px",
+                    border_radius="var(--radius-full)",
+                    background=rx.cond(
+                        State.cost > BUDGET_LIMIT,
+                        f"color-mix(in srgb, {APPLE_RED} 12%, transparent)",
+                        f"color-mix(in srgb, {APPLE_GREEN} 12%, transparent)",
+                    ),
                 ),
-                padding="8px 16px",
-                border_radius="var(--radius-full)",
-                background=rx.cond(
-                    State.cost > BUDGET_LIMIT,
-                    f"color-mix(in srgb, {APPLE_RED} 12%, transparent)",
-                    f"color-mix(in srgb, {APPLE_GREEN} 12%, transparent)",
+                # Badge Sobriety Score (Energy Label)
+                rx.tooltip(
+                    rx.box(
+                        rx.hstack(
+                            rx.icon(
+                                "leaf",
+                                size=14,
+                                color=State.score_color,
+                            ),
+                            rx.text(
+                                rx.cond(
+                                    State.sobriety_score == "N/A",
+                                    "Score ?",
+                                    f"Score {State.sobriety_score}",
+                                ),
+                                weight="bold",
+                                size="2",
+                                color=State.score_color,
+                            ),
+                            spacing="2",
+                            align="center",
+                        ),
+                        padding="8px 14px",
+                        border_radius="var(--radius-full)",
+                        background=f"color-mix(in srgb, {APPLE_GREEN} 6%, var(--gray-1))",
+                        border=f"1px solid color-mix(in srgb, {APPLE_GREEN} 24%, transparent)",
+                    ),
+                    content="Sobriety Score: A = très sobre, E = très gourmand. Basé sur vCPU, RAM et type de stockage.",
+                ),
+                spacing="3",
+                align="center",
+            ),
+            # Alerte région carbone élevée (optionnel)
+            rx.cond(
+                State.is_high_carbon_region,
+                rx.box(
+                    rx.hstack(
+                        rx.icon("alert-triangle", size=14, color=APPLE_ORANGE),
+                        rx.text(
+                            "Région à forte intensité carbone. Envisagez europe-west1 / europe-north1 / europe-west9 si possible.",
+                            size="1",
+                            color="var(--gray-11)",
+                        ),
+                        spacing="2",
+                        align="start",
+                    ),
+                    margin_top="8px",
+                    padding="8px 12px",
+                    border_radius="10px",
+                    background=f"color-mix(in srgb, {APPLE_ORANGE} 6%, transparent)",
+                    border=f"1px solid color-mix(in srgb, {APPLE_ORANGE} 22%, transparent)",
                 ),
             ),
             
@@ -93,6 +157,8 @@ def pricing_block() -> rx.Component:
             
             # Graphique donut
             _cost_chart(),
+            # Comparatif Coût vs Empreinte
+            carbon_vs_cost_chart(),
             
             align="center",
             spacing="3",

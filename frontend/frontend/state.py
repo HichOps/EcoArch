@@ -71,6 +71,10 @@ def _get_supabase():
 AUTH_SECRET = os.getenv("AUTH_SECRET_KEY", "")
 AUTH_ENABLED = bool(AUTH_SECRET)
 
+# ── Audit polling (GreenOps – backoff exponentiel) ─────────────────
+_AUDIT_POLL_INTERVAL_MIN_S = 10
+_AUDIT_POLL_INTERVAL_MAX_S = 120
+
 
 def _generate_auth_token(username: str) -> str:
     """Génère un token HMAC pour un utilisateur (appelé côté serveur)."""
@@ -404,6 +408,10 @@ class State(rx.State):
     is_deploying: bool = False
     deploy_status: str = "idle"  # idle, queued, pipeline_sent, running, success, error
     pipeline_url: str = ""
+    # Script de démo non bloquant (GreenOps)
+    demo_script: list[dict[str, Any]] = []
+    demo_index: int = 0
+    demo_audit_id: int | None = None
 
     @staticmethod
     def _terraform_available() -> bool:
@@ -520,52 +528,53 @@ class State(rx.State):
             yield
 
     def _deploy_demo(self, target_id: str, audit_id: int | None):
-        """Mode démo : simule un déploiement réussi avec logs réalistes."""
-        import time
-
+        """Mode démo : prépare un script de logs non bloquant pour le déploiement."""
         self.deploy_status = "running"
-        yield
-
         # Générer les noms de ressources du panier pour des logs réalistes
         resource_names = [
             r.get("display_name", r.get("type", "resource"))
             for r in self.resource_list
         ] or ["default-resource"]
 
-        demo_steps = [
-            ("📦 Initialisation Terraform...", 1.0),
-            ("✅ Terraform init... OK", 0.5),
-            (f"📋 Plan : {len(self.resource_list)} ressource(s) à créer", 0.8),
-            ("✅ Terraform plan... OK (0 to change, {n} to add)".format(n=len(self.resource_list)), 0.5),
-            ("🚀 Terraform apply en cours...", 1.0),
+        demo_steps: list[dict[str, Any]] = [
+            {"message": "📦 Initialisation Terraform...", "delay": 1.0},
+            {"message": "✅ Terraform init... OK", "delay": 0.5},
+            {
+                "message": f"📋 Plan : {len(self.resource_list)} ressource(s) à créer",
+                "delay": 0.8,
+            },
+            {
+                "message": "✅ Terraform plan... OK (0 to change, {n} to add)".format(
+                    n=len(self.resource_list)
+                ),
+                "delay": 0.5,
+            },
+            {"message": "🚀 Terraform apply en cours...", "delay": 1.0},
         ]
 
         # Ajouter des lignes par ressource
         for i, name in enumerate(resource_names):
             pct = int((i + 1) / len(resource_names) * 80) + 10
-            demo_steps.append((f"⚙️  Creating {name}... {pct}%", 1.2))
+            demo_steps.append(
+                {"message": f"⚙️  Creating {name}... {pct}%", "delay": 1.2}
+            )
 
         demo_steps += [
-            ("🔗 Configuring networking & firewall rules...", 0.8),
-            ("✅ Apply complete! Resources: {n} added, 0 changed, 0 destroyed.".format(n=len(self.resource_list)), 0.5),
-            (f"🌟 Coût estimé : {self.cost:.2f} $/mois", 0.3),
-            (f"🏁 Deployment {target_id} Complete!", 0.0),
+            {"message": "🔗 Configuring networking & firewall rules...", "delay": 0.8},
+            {
+                "message": "✅ Apply complete! Resources: {n} added, 0 changed, 0 destroyed.".format(
+                    n=len(self.resource_list)
+                ),
+                "delay": 0.5,
+            },
+            {"message": f"🌟 Coût estimé : {self.cost:.2f} $/mois", "delay": 0.3},
+            {"message": f"🏁 Deployment {target_id} Complete!", "delay": 0.0},
         ]
 
-        for msg, delay in demo_steps:
-            if delay > 0:
-                time.sleep(delay)
-            self._append_log(msg)
-            yield
-
-        self.deploy_status = "success"
-        self.logs.append("✅ SUCCESS (mode démo)")
-        yield
-
-        # Mettre à jour l'audit log dans Supabase
-        self._update_audit_log(audit_id, "SUCCESS")
-        self.is_deploying = False
-        self.load_audit_logs()
+        # Stocker le script pour exécution progressive côté frontend
+        self.demo_script = demo_steps
+        self.demo_index = 0
+        self.demo_audit_id = audit_id
         yield
 
     def start_destruction(self):
@@ -650,46 +659,43 @@ class State(rx.State):
             yield
 
     def _destroy_demo(self, target_id: str, audit_id: int | None):
-        """Mode démo : simule une destruction réussie."""
-        import time
-
+        """Mode démo : prépare un script de logs non bloquant pour la destruction."""
         self.deploy_status = "running"
-        yield
 
         resource_names = [
             r.get("display_name", r.get("type", "resource"))
             for r in self.resource_list
         ] or ["default-resource"]
 
-        demo_steps = [
-            ("📦 Initialisation Terraform...", 1.0),
-            ("✅ Terraform init... OK", 0.5),
-            (f"📋 Plan : {len(self.resource_list)} ressource(s) à détruire", 0.8),
-            ("💥 Terraform destroy en cours...", 1.0),
+        demo_steps: list[dict[str, Any]] = [
+            {"message": "📦 Initialisation Terraform...", "delay": 1.0},
+            {"message": "✅ Terraform init... OK", "delay": 0.5},
+            {
+                "message": f"📋 Plan : {len(self.resource_list)} ressource(s) à détruire",
+                "delay": 0.8,
+            },
+            {"message": "💥 Terraform destroy en cours...", "delay": 1.0},
         ]
 
         for i, name in enumerate(resource_names):
             pct = int((i + 1) / len(resource_names) * 80) + 10
-            demo_steps.append((f"🗑️  Destroying {name}... {pct}%", 1.0))
+            demo_steps.append(
+                {"message": f"🗑️  Destroying {name}... {pct}%", "delay": 1.0}
+            )
 
         demo_steps += [
-            ("✅ Destroy complete! Resources: {n} destroyed.".format(n=len(self.resource_list)), 0.5),
-            (f"🏁 Destruction {target_id} Complete!", 0.0),
+            {
+                "message": "✅ Destroy complete! Resources: {n} destroyed.".format(
+                    n=len(self.resource_list)
+                ),
+                "delay": 0.5,
+            },
+            {"message": f"🏁 Destruction {target_id} Complete!", "delay": 0.0},
         ]
 
-        for msg, delay in demo_steps:
-            if delay > 0:
-                time.sleep(delay)
-            self._append_log(msg)
-            yield
-
-        self.deploy_status = "success"
-        self.logs.append("✅ DESTROY SUCCESS (mode démo)")
-        yield
-
-        self._update_audit_log(audit_id, "SUCCESS")
-        self.is_deploying = False
-        self.load_audit_logs()
+        self.demo_script = demo_steps
+        self.demo_index = 0
+        self.demo_audit_id = audit_id
         yield
 
     def _append_log(self, line: str) -> None:
@@ -697,6 +703,31 @@ class State(rx.State):
         self.logs.append(line)
         if len(self.logs) > 100:
             self.logs.pop(0)
+
+    def advance_demo_step(self) -> None:
+        """Exécute la prochaine étape du script de démo sans bloquer le worker."""
+        if self.deploy_status != "running":
+            return
+
+        if self.demo_index >= len(self.demo_script):
+            # Fin du script : marquer le succès et mettre à jour l'audit
+            self.deploy_status = "success"
+            self.logs.append("✅ SUCCESS (mode démo)")
+            if self.demo_audit_id is not None:
+                self._update_audit_log(self.demo_audit_id, "SUCCESS")
+            self.is_deploying = False
+            self.load_audit_logs()
+            # Reset du script
+            self.demo_script = []
+            self.demo_index = 0
+            self.demo_audit_id = None
+            return
+
+        step = self.demo_script[self.demo_index]
+        message = str(step.get("message", ""))
+        if message:
+            self._append_log(message)
+        self.demo_index += 1
 
     def close_console(self) -> None:
         """Ferme la console de déploiement."""
@@ -757,6 +788,8 @@ class State(rx.State):
 
     # ===== AUDIT LOGS =====
     audit_logs: list[dict] = []
+    audit_no_change_count: int = 0
+    audit_poll_interval_s: int = _AUDIT_POLL_INTERVAL_MIN_S
 
     def load_audit_logs(self) -> None:
         """Charge les logs d'audit depuis Supabase.
@@ -776,6 +809,7 @@ class State(rx.State):
             ).limit(50).execute()
 
             rows = res.data or []
+            any_status_changed = False
 
             # ── Polling GitLab pour les pipelines en attente ──
             if check_pipeline_status is not None and extract_pipeline_id is not None:
@@ -791,6 +825,7 @@ class State(rx.State):
 
                     new_status = check_pipeline_status(p_id)
                     if new_status and new_status != status:
+                        any_status_changed = True
                         # Met à jour Supabase
                         try:
                             sb.table("audit_logs").update(
@@ -804,6 +839,26 @@ class State(rx.State):
                                 new_status,
                                 exc_info=True,
                             )
+
+            # Backoff exponentiel GreenOps
+            if any_status_changed:
+                self.audit_no_change_count = 0
+                self.audit_poll_interval_s = _AUDIT_POLL_INTERVAL_MIN_S
+            else:
+                self.audit_no_change_count += 1
+                if self.audit_no_change_count >= 3:
+                    new_interval = min(
+                        self.audit_poll_interval_s * 2,
+                        _AUDIT_POLL_INTERVAL_MAX_S,
+                    )
+                    if new_interval != self.audit_poll_interval_s:
+                        logger.info(
+                            "Augmentation de l'intervalle de polling audit: %ss → %ss",
+                            self.audit_poll_interval_s,
+                            new_interval,
+                        )
+                    self.audit_poll_interval_s = new_interval
+                    self.audit_no_change_count = 0
 
             self.audit_logs = [
                 self._format_audit_row(row) for row in rows
@@ -886,3 +941,71 @@ class State(rx.State):
         if any(kw in name for kw in ("address", "forwarding", "load_balancer", "lb")):
             return "Network"
         return "Autre"
+
+    @rx.var
+    def sobriety_score(self) -> str:
+        """Retourne la note de sobriété (A → E) pour le panier courant."""
+        try:
+            region = self.wizard_answers.get("region", Config.DEFAULT_REGION)
+            return RecommendationEngine.calculate_sobriety_score(
+                self.resource_list,
+                environment=self.wizard_answers.get("environment", "dev"),
+                region=region,
+            )
+        except Exception:
+            logger.warning("Erreur calcul sobriety_score", exc_info=True)
+            return "N/A"
+
+    @rx.var
+    def score_color(self) -> str:
+        """Couleur associée à la note de sobriété."""
+        mapping = {
+            "A": "#34C759",  # vert
+            "B": "#30D158",  # vert clair
+            "C": "#FFCC00",  # jaune
+            "D": "#FF9500",  # orange
+            "E": "#FF3B30",  # rouge
+        }
+        return mapping.get(self.sobriety_score, "var(--gray-8)")
+
+    @rx.var
+    def is_high_carbon_region(self) -> bool:
+        """Indique si la région sélectionnée est à forte intensité carbone."""
+        region = self.wizard_answers.get("region", Config.DEFAULT_REGION)
+        try:
+            return RecommendationEngine.is_high_carbon_region(region)
+        except Exception:
+            logger.warning("Erreur détection région carbone", exc_info=True)
+            return False
+
+    @rx.var
+    def green_suggestion_text(self) -> str:
+        """Texte de suggestion GreenOps basé sur la région et la sobriété actuelle."""
+        if not self.is_high_carbon_region:
+            return ""
+        region = self.wizard_answers.get("region", Config.DEFAULT_REGION)
+        try:
+            alternative = RecommendationEngine.get_green_alternative(region)
+        except Exception:
+            logger.warning("Erreur récupération alternative verte", exc_info=True)
+            alternative = None
+        if not alternative:
+            return ""
+        return f"Économisez environ 30% d'émissions en basculant sur la région {alternative}."
+
+    @rx.var
+    def next_demo_delay_ms(self) -> int:
+        """Retourne le délai (en ms) avant la prochaine étape de démo."""
+        if self.demo_index >= len(self.demo_script):
+            return 0
+        step = self.demo_script[self.demo_index]
+        try:
+            delay_s = float(step.get("delay", 0.5))
+        except (TypeError, ValueError):
+            delay_s = 0.5
+        # Clamp pour éviter des valeurs aberrantes
+        if delay_s < 0:
+            delay_s = 0.0
+        if delay_s > 10:
+            delay_s = 10.0
+        return int(delay_s * 1000)
